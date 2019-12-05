@@ -5,6 +5,7 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
+using System.Linq;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Text.RegularExpressions;
@@ -12,7 +13,7 @@ using System.Text.RegularExpressions;
 namespace CppAst.CodeGen.CSharp
 {
     [StructLayout(LayoutKind.Explicit)]
-    public class DefaultMappingRulesConverter: ICSharpConverterPlugin
+    public class DefaultMappingRulesConverter : ICSharpConverterPlugin
     {
         private const string CachedRulesKey = nameof(DefaultMappingRulesConverter) + "_" + nameof(CachedRulesKey);
 
@@ -39,24 +40,23 @@ namespace CppAst.CodeGen.CSharp
         {
             var cachedRules = GetCachedRules(converter);
 
-            if (cachedRules.TypesToCompile.Count > 0)
+            if (cachedRules.TypesToCompile.Count <= 0) { return; }
+
+            var matchTypeDef = new Regex($@"^{cachedRules.Prefix}(\d+)_typedef$");
+            var typedefs = converter.CurrentCppCompilation.Typedefs;
+
+            for (var i = typedefs.Count - 1; i >= 0; i--)
             {
-                var matchTypeDef = new Regex($@"^{cachedRules.Prefix}(\d+)_typedef$");
+                var cppTypedef = typedefs[i];
+                var result = matchTypeDef.Match(cppTypedef.Name);
 
-                var typedefs = converter.CurrentCppCompilation.Typedefs;
-                for (var i = typedefs.Count - 1; i >= 0; i--)
+                if (result.Success)
                 {
-                    var cppTypedef = typedefs[i];
-                    var result = matchTypeDef.Match(cppTypedef.Name);
+                    var typeIndex = int.Parse(result.Groups[1].Value);
 
-                    if (result.Success)
-                    {
-                        var typeIndex = int.Parse(result.Groups[1].Value);
-
-                        var typeToCompile = cachedRules.TypesToCompile[typeIndex];
-                        cachedRules.TypesCompiled[new TypeRemapKey(typeToCompile.TypeRemap, typeToCompile.TypeRemapArraySize)] = cppTypedef.ElementType;
-                        typedefs.RemoveAt(i);
-                    }
+                    var typeToCompile = cachedRules.TypesToCompile[typeIndex];
+                    cachedRules.TypesCompiled[new TypeRemapKey(typeToCompile.TypeRemap, typeToCompile.TypeRemapArraySize)] = cppTypedef.ElementType;
+                    typedefs.RemoveAt(i);
                 }
             }
         }
@@ -65,11 +65,12 @@ namespace CppAst.CodeGen.CSharp
         {
             var cachedRules = GetCachedRules(converter);
             var macroRules = cachedRules.MacroRules;
+
             if (macroRules.Count > 0)
             {
-
                 var matches = new List<ICppElementMatch>();
                 var enumToMacros = new Dictionary<CppMacroToEnumMappingRule, StringBuilder>();
+
                 foreach (var cppMacro in cppCompilation.Macros)
                 {
                     if (cppMacro.Parameters != null)
@@ -80,47 +81,40 @@ namespace CppAst.CodeGen.CSharp
                     foreach (var cppMacroRule in macroRules)
                     {
                         matches.Clear();
-                        if (cppMacroRule.Match(cppMacro, matches))
-                        {
-                            var regexMatch = matches.FindMatch<CppElementRegexMatch>();
 
-                            if (cppMacroRule is CppMacroToConstMappingRule macroToConst)
-                            {
+                        if (!cppMacroRule.Match(cppMacro, matches)) { continue; }
+
+                        var regexMatch = matches.FindMatch<CppElementRegexMatch>();
+
+                        switch (cppMacroRule)
+                        {
+                            case CppMacroToConstMappingRule macroToConst:
                                 AppendPragmaLine(cppMacroRule, additionalHeaders);
 
                                 var macroName = cppMacro.Name;
+
                                 if (regexMatch != null && macroToConst.ConstFieldName != null)
                                 {
                                     macroName = Regex.Replace(regexMatch.RegexInput, regexMatch.RegexPattern, macroToConst.ConstFieldName);
                                 }
 
-                                foreach (var token in cppMacro.Tokens)
+                                foreach (var token in cppMacro.Tokens.Where(token => token.Kind == CppTokenKind.Comment && !string.IsNullOrEmpty(token.Text)))
                                 {
-                                    if (token.Kind == CppTokenKind.Comment && !string.IsNullOrEmpty(token.Text))
-                                    {
-                                        additionalHeaders.AppendLine(token.Text);
-                                    }
+                                    additionalHeaders.AppendLine(token.Text);
                                 }
 
-                                if (macroToConst.ExplicitCast)
-                                {
-                                    additionalHeaders.AppendLine($"const {macroToConst.ConstFieldTypeName} {cachedRules.Prefix}{macroName} = ({macroToConst.ConstFieldTypeName}){cppMacro.Value};");
-                                }
-                                else
-                                {
-                                    additionalHeaders.AppendLine($"const {macroToConst.ConstFieldTypeName} {cachedRules.Prefix}{macroName} = {cppMacro.Value};");
-                                }
-                            }
-                            else if (cppMacroRule is CppMacroToEnumMappingRule macroToEnum)
-                            {
+                                additionalHeaders.AppendLine(macroToConst.ExplicitCast
+                                    ? $"const {macroToConst.ConstFieldTypeName} {cachedRules.Prefix}{macroName} = ({macroToConst.ConstFieldTypeName}){cppMacro.Value};"
+                                    : $"const {macroToConst.ConstFieldTypeName} {cachedRules.Prefix}{macroName} = {cppMacro.Value};");
+                                break;
+                            case CppMacroToEnumMappingRule macroToEnum:
                                 if (!enumToMacros.TryGetValue(macroToEnum, out var macrosAsEnumText))
                                 {
                                     macrosAsEnumText = new StringBuilder();
-
                                     var enumTypeName = macroToEnum.CppEnumTypeName;
-
                                     AppendPragmaLine(cppMacroRule, macrosAsEnumText);
                                     macrosAsEnumText.Append($"enum {enumTypeName}");
+
                                     if (macroToEnum.CppIntegerTypeName != "int")
                                     {
                                         macrosAsEnumText.Append(" : ").Append(macroToEnum.CppIntegerTypeName);
@@ -128,52 +122,48 @@ namespace CppAst.CodeGen.CSharp
 
                                     macrosAsEnumText.AppendLine();
                                     macrosAsEnumText.AppendLine("{");
-
                                     enumToMacros.Add(macroToEnum, macrosAsEnumText);
                                 }
 
                                 var enumItemName = macroToEnum.CppEnumItemName;
+
                                 if (regexMatch != null)
                                 {
-                                    enumItemName = Regex.Replace(regexMatch.RegexInput, regexMatch.RegexPattern, enumItemName);
+                                    enumItemName = Regex.Replace(regexMatch.RegexInput, regexMatch.RegexPattern,
+                                        enumItemName);
                                 }
 
                                 AppendPragmaLine(cppMacroRule, macrosAsEnumText);
-                                if (macroToEnum.ExplicitCast)
-                                {
-                                    macrosAsEnumText.AppendLine($"    {cachedRules.Prefix}{enumItemName} = ({macroToEnum.CppIntegerTypeName}){cppMacro.Value},");
-                                }
-                                else
-                                {
-                                    macrosAsEnumText.AppendLine($"    {cachedRules.Prefix}{enumItemName} = {cppMacro.Value},");
-                                }
-                            }
+                                macrosAsEnumText.AppendLine(macroToEnum.ExplicitCast
+                                    ? $"    {cachedRules.Prefix}{enumItemName} = ({macroToEnum.CppIntegerTypeName}){cppMacro.Value},"
+                                    : $"    {cachedRules.Prefix}{enumItemName} = {cppMacro.Value},");
+                                break;
                         }
                     }
                 }
 
-                foreach (var enumToMacroPair in enumToMacros)
+                foreach (var enumDeclarationText in enumToMacros.Select(enumToMacroPair => enumToMacroPair.Value.AppendLine("};")))
                 {
-                    var enumDeclarationText = enumToMacroPair.Value.AppendLine("};");
                     additionalHeaders.AppendLine(enumDeclarationText.ToString());
                 }
             }
 
-            if (cachedRules.TypesToCompile.Count > 0)
+            if (cachedRules.TypesToCompile.Count <= 0) { return; }
+
+            for (var i = 0; i < cachedRules.TypesToCompile.Count; i++)
             {
-                for (var i = 0; i < cachedRules.TypesToCompile.Count; i++)
+                var rule = cachedRules.TypesToCompile[i];
+                AppendPragmaLine(rule, additionalHeaders);
+
+                if (rule.TypeRemapArraySize.HasValue)
                 {
-                    var rule = cachedRules.TypesToCompile[i];
-                    AppendPragmaLine(rule, additionalHeaders);
-                    if (rule.TypeRemapArraySize.HasValue)
-                    {
-                        var value = rule.TypeRemapArraySize.Value;
-                        additionalHeaders.AppendLine($"typedef {rule.TypeRemap} {cachedRules.Prefix}{i}_typedef[{(value < 0 ? string.Empty : value.ToString(CultureInfo.InvariantCulture))}];");
-                    }
-                    else
-                    {
-                        additionalHeaders.AppendLine($"typedef {rule.TypeRemap} {cachedRules.Prefix}{i}_typedef;");
-                    }
+                    var value = rule.TypeRemapArraySize.Value;
+                    var typedef = value < 0 ? string.Empty : value.ToString(CultureInfo.InvariantCulture);
+                    additionalHeaders.AppendLine($"typedef {rule.TypeRemap} {cachedRules.Prefix}{i}_typedef[{typedef}];");
+                }
+                else
+                {
+                    additionalHeaders.AppendLine($"typedef {rule.TypeRemap} {cachedRules.Prefix}{i}_typedef;");
                 }
             }
         }
@@ -189,8 +179,7 @@ namespace CppAst.CodeGen.CSharp
 
             var rules = cachedRules.StandardRules;
 
-            // If a CppElement starts with a Prefix, it was generated by AfterPreprocessing and need to be removed
-            // entirely
+            // If a CppElement starts with a Prefix, it was generated by AfterPreprocessing and need to be removed entirely
             if (cppElement is ICppMember member && member.Name.StartsWith(cachedRules.Prefix))
             {
                 member.Name = member.Name.Substring(cachedRules.Prefix.Length);
@@ -200,24 +189,24 @@ namespace CppAst.CodeGen.CSharp
             foreach (var rule in rules)
             {
                 matches.Clear();
-                if (rule.Match(cppElement, matches))
+
+                if (!rule.Match(cppElement, matches)) { continue; }
+
+                if (rule.CSharpElementActions.Count > 0)
                 {
-                    if (rule.CSharpElementActions.Count > 0)
+                    // save the match for later
+                    if (!cachedRules.ElementToMatches.TryGetValue(cppElement, out var listCppElementMatch))
                     {
-                        // save the match for later
-                        List<CppElementMatch> listCppElementMatch;
-                        if (!cachedRules.ElementToMatches.TryGetValue(cppElement, out listCppElementMatch))
-                        {
-                            listCppElementMatch = new List<CppElementMatch>();
-                            cachedRules.ElementToMatches.Add(cppElement, listCppElementMatch);
-                        }
-                        listCppElementMatch.Add(new CppElementMatch(rule, new List<ICppElementMatch>(matches)));
+                        listCppElementMatch = new List<CppElementMatch>();
+                        cachedRules.ElementToMatches.Add(cppElement, listCppElementMatch);
                     }
 
-                    foreach (var action in rule.CppElementActions)
-                    {
-                        action(converter, cppElement, context, matches);
-                    }
+                    listCppElementMatch.Add(new CppElementMatch(rule, new List<ICppElementMatch>(matches)));
+                }
+
+                foreach (var action in rule.CppElementActions)
+                {
+                    action(converter, cppElement, context, matches);
                 }
             }
         }
@@ -225,20 +214,16 @@ namespace CppAst.CodeGen.CSharp
         internal static CppType GetCppTypeRemap(CSharpConverter converter, string typeName, int? typeRemapArraySize = null)
         {
             var cachedRules = GetCachedRules(converter);
-
-            if (cachedRules.TypesCompiled.TryGetValue(new TypeRemapKey(typeName, typeRemapArraySize), out var cppType))
-            {
-                return cppType;
-            }
-
-            return null;
+            var key = new TypeRemapKey(typeName, typeRemapArraySize);
+            return cachedRules.TypesCompiled.TryGetValue(key, out var cppType) ? cppType : null;
         }
 
         private static void ProcessCSharpElementMappingRules(CSharpConverter converter, CSharpElement element, CSharpElement context)
         {
-            if (element.CppElement == null) return;
-            
+            if (element.CppElement == null) { return; }
+
             var cachedRules = GetCachedRules(converter);
+
             if (cachedRules.ElementToMatches.TryGetValue(element.CppElement, out var rules))
             {
                 foreach (var rule in rules)
@@ -256,39 +241,39 @@ namespace CppAst.CodeGen.CSharp
 
         private static CachedRules GetCachedRules(CSharpConverter converter)
         {
-            //var cachedRules = GetCachedRules(converter);
-
             var cachedRules = converter.GetTagValueOrDefault<CachedRules>(CachedRulesKey);
-            if (cachedRules == null)
+
+            if (cachedRules != null) { return cachedRules; }
+
+            cachedRules = new CachedRules();
+
+            foreach (var mappingRule in converter.Options.MappingRules.MacroRules)
             {
-                cachedRules = new CachedRules();
-
-                foreach (var mappingRule in converter.Options.MappingRules.MacroRules)
-                {
-                    cachedRules.MacroRules.Add(mappingRule);
-                }
-
-                var tempTypedefRules = new Dictionary<TypeRemapKey, CppElementMappingRule>();
-                foreach (var mappingRule in converter.Options.MappingRules.StandardRules)
-                {
-                    cachedRules.StandardRules.Add(mappingRule);
-                    if (mappingRule.TypeRemap != null)
-                    {
-                        tempTypedefRules[new TypeRemapKey(mappingRule.TypeRemap, mappingRule.TypeRemapArraySize)] = mappingRule;
-                    }
-                }
-
-                foreach (var cppElementMappingRule in tempTypedefRules)
-                {
-                    cachedRules.TypesToCompile.Add(cppElementMappingRule.Value);
-                }
-                
-                converter.Tags.Add(CachedRulesKey, cachedRules);
+                cachedRules.MacroRules.Add(mappingRule);
             }
+
+            var tempTypedefRules = new Dictionary<TypeRemapKey, CppElementMappingRule>();
+
+            foreach (var mappingRule in converter.Options.MappingRules.StandardRules)
+            {
+                cachedRules.StandardRules.Add(mappingRule);
+
+                if (mappingRule.TypeRemap != null)
+                {
+                    tempTypedefRules[new TypeRemapKey(mappingRule.TypeRemap, mappingRule.TypeRemapArraySize)] = mappingRule;
+                }
+            }
+
+            foreach (var cppElementMappingRule in tempTypedefRules)
+            {
+                cachedRules.TypesToCompile.Add(cppElementMappingRule.Value);
+            }
+
+            converter.Tags.Add(CachedRulesKey, cachedRules);
 
             return cachedRules;
         }
-        
+
         private class CachedRules
         {
             public CachedRules()
@@ -333,11 +318,13 @@ namespace CppAst.CodeGen.CSharp
                 return string.Equals(TypeRemap, other.TypeRemap) && TypeRemapArraySize == other.TypeRemapArraySize;
             }
 
+            /// <inheritdoc />
             public override bool Equals(object obj)
             {
                 return obj is TypeRemapKey other && Equals(other);
             }
 
+            /// <inheritdoc />
             public override int GetHashCode()
             {
                 unchecked
@@ -354,7 +341,7 @@ namespace CppAst.CodeGen.CSharp
                 Rule = rule;
                 Matches = matches;
             }
-            
+
             public CppElementMappingRule Rule { get; }
 
             public List<ICppElementMatch> Matches { get; }

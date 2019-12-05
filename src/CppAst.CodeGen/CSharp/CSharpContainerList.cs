@@ -124,25 +124,4 @@ namespace CppAst.CodeGen.CSharp
             set => _elements[index] = value;
         }
     }
-
-    class CSharpContainerListDebugView<T>
-    {
-        private readonly ICollection<T> _collection;
-
-        public CSharpContainerListDebugView(ICollection<T> collection)
-        {
-            _collection = collection ?? throw new ArgumentNullException(nameof(collection));
-        }
-
-        [DebuggerBrowsable(DebuggerBrowsableState.RootHidden)]
-        public T[] Items
-        {
-            get
-            {
-                T[] array = new T[this._collection.Count];
-                this._collection.CopyTo(array, 0);
-                return array;
-            }
-        }
-    }
 }

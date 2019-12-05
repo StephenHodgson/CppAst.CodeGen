@@ -48,6 +48,6 @@ namespace CppAst.CodeGen.CSharp
         /// <summary>
         /// 'SCREAMING_CASE'
         /// </summary>
-        ScreamingSnake,
+        ScreamingSnake
     }
 }

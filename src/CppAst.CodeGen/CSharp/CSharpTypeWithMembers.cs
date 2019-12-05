@@ -36,7 +36,7 @@ namespace CppAst.CodeGen.CSharp
         {
             if (element is CSharpCompilation || element is CSharpGeneratedFile || element is CSharpNamespace)
             {
-                throw new ArgumentException($"Cannot add a {element.GetType().Name} to members of a {this.GetType().Name}");
+                throw new ArgumentException($"Cannot add a {element.GetType().Name} to members of a {GetType().Name}");
             }
         }
 
@@ -75,9 +75,7 @@ namespace CppAst.CodeGen.CSharp
             if (mode == CodeWriterMode.Full)
             {
                 writer.OpenBraceBlock();
-                {
-                    this.DumpMembersTo(writer);
-                }
+                this.DumpMembersTo(writer);
                 writer.CloseBraceBlock();
             }
             else

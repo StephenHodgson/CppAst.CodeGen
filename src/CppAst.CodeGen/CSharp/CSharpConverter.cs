@@ -5,7 +5,6 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Runtime.CompilerServices;
 using System.Text;
 using CppAst.CodeGen.Common;
 
@@ -13,13 +12,10 @@ namespace CppAst.CodeGen.CSharp
 {
     public sealed class CSharpConverter
     {
-        private CppCompilation _cppCompilation;
-        private CSharpCompilation _csCompilation;
-        private CodeWriter _csTempWriter;
+        private readonly CodeWriter _csTempWriter;
         private readonly Dictionary<CppElement, CSharpElement> _mapCppToCSharp;
         private readonly HashSet<CppElement> _cppElementsToDiscard;
         private readonly Stack<ICSharpContainer> _currentContainers;
-
         private readonly CSharpConverterPipeline _pipeline;
 
         private CSharpConverter(CSharpConverterOptions options)
@@ -29,16 +25,14 @@ namespace CppAst.CodeGen.CSharp
             _cppElementsToDiscard = new HashSet<CppElement>(CppElementReferenceEqualityComparer.Default);
             _csTempWriter = new CodeWriter(new CodeWriterOptions(null));
             Tags = new Dictionary<string, object>();
-
             _currentContainers = new Stack<ICSharpContainer>();
-
             _pipeline = new CSharpConverterPipeline(options);
             _pipeline.RegisterPlugins(this);
         }
 
-        public CppCompilation CurrentCppCompilation => _cppCompilation;
+        public CppCompilation CurrentCppCompilation { get; private set; }
 
-        public CSharpCompilation CurrentCSharpCompilation => _csCompilation;
+        public CSharpCompilation CurrentCSharpCompilation { get; private set; }
 
         public CSharpConverterOptions Options { get; }
 
@@ -46,8 +40,8 @@ namespace CppAst.CodeGen.CSharp
 
         public static CSharpCompilation Convert(List<string> files, CSharpConverterOptions options)
         {
-            if (files == null) throw new ArgumentNullException(nameof(files));
-            if (options == null) throw new ArgumentNullException(nameof(options));
+            if (files == null) { throw new ArgumentNullException(nameof(files)); }
+            if (options == null) { throw new ArgumentNullException(nameof(options)); }
 
             var converter = new CSharpConverter(options);
             return converter.Run(parserOptions => CppParser.ParseFiles(files, parserOptions));
@@ -55,8 +49,8 @@ namespace CppAst.CodeGen.CSharp
 
         public static CSharpCompilation Convert(string text, CSharpConverterOptions options)
         {
-            if (text == null) throw new ArgumentNullException(nameof(text));
-            if (options == null) throw new ArgumentNullException(nameof(options));
+            if (text == null) { throw new ArgumentNullException(nameof(text)); }
+            if (options == null) { throw new ArgumentNullException(nameof(options)); }
 
             var converter = new CSharpConverter(options);
             return converter.Run(parserOptions => CppParser.Parse(text, parserOptions));
@@ -79,7 +73,7 @@ namespace CppAst.CodeGen.CSharp
 
             if (_pipeline.AfterPreprocessing.Count > 0)
             {
-                var preprocessingOptions = this.Options.Clone();
+                var preprocessingOptions = Options.Clone();
                 preprocessingOptions.AdditionalArguments.Add("--preprocess");
                 preprocessingOptions.ParseMacros = true;
 
@@ -88,7 +82,7 @@ namespace CppAst.CodeGen.CSharp
                 // Early exit if we have compilation errors
                 if (!cppCompilationPreprocessed.HasErrors)
                 {
-                    _cppCompilation = cppCompilationPreprocessed;
+                    CurrentCppCompilation = cppCompilationPreprocessed;
 
                     // Let preprocessing working
                     for (var i = _pipeline.AfterPreprocessing.Count - 1; i >= 0; i--)
@@ -99,11 +93,11 @@ namespace CppAst.CodeGen.CSharp
                 }
             }
 
-            var cppOptions = this.Options.Clone();
+            var cppOptions = Options.Clone();
 
             if (additionalHeaders.Length > 0)
             {
-                cppOptions.PostHeaderText = (cppOptions.PostHeaderText ?? String.Empty) + "\n" + additionalHeaders + "\n";
+                cppOptions.PostHeaderText = (cppOptions.PostHeaderText ?? string.Empty) + "\n" + additionalHeaders + "\n";
             }
 
             var cppCompilation = parse(cppOptions);
@@ -113,7 +107,7 @@ namespace CppAst.CodeGen.CSharp
 
         public object GetTagValueOrNull(string name)
         {
-            if (name == null) throw new ArgumentNullException(nameof(name));
+            if (name == null) { throw new ArgumentNullException(nameof(name)); }
             Tags.TryGetValue(name, out var obj);
             return obj;
         }
@@ -126,11 +120,11 @@ namespace CppAst.CodeGen.CSharp
 
         public string ConvertTypeReferenceToString(CSharpType csType, out string attachedAttributes)
         {
-            var strWriter = (StringWriter) _csTempWriter.CurrentWriter;
+            var strWriter = (StringWriter)_csTempWriter.CurrentWriter;
             strWriter.GetStringBuilder().Length = 0;
             csType.DumpReferenceTo(_csTempWriter);
             var typeReferenceName = strWriter.ToString();
-            
+
             strWriter.GetStringBuilder().Length = 0;
             csType.DumpContextualAttributesTo(_csTempWriter);
             attachedAttributes = strWriter.ToString();
@@ -140,14 +134,14 @@ namespace CppAst.CodeGen.CSharp
 
         private CSharpCompilation Convert(CppCompilation cppCompilation)
         {
-            if (cppCompilation == null) throw new ArgumentNullException(nameof(cppCompilation));
-            return (CSharpCompilation)Convert(cppCompilation, 0,  null);
+            if (cppCompilation == null) { throw new ArgumentNullException(nameof(cppCompilation)); }
+            return (CSharpCompilation)Convert(cppCompilation, 0, null);
         }
 
         private CSharpElement Convert(CppElement cppElement, CSharpElement context)
         {
-            if (cppElement == null) throw new ArgumentNullException(nameof(cppElement));
-            if (context == null) throw new ArgumentNullException(nameof(context));
+            if (cppElement == null) { throw new ArgumentNullException(nameof(cppElement)); }
+            if (context == null) { throw new ArgumentNullException(nameof(context)); }
             return Convert(cppElement, 0, context);
         }
 
@@ -158,7 +152,7 @@ namespace CppAst.CodeGen.CSharp
 
         private CSharpElement Convert(CppElement cppElement, int index, CSharpElement context)
         {
-            if (_mapCppToCSharp.TryGetValue(cppElement, out var csElement)) return csElement;
+            if (_mapCppToCSharp.TryGetValue(cppElement, out var csElement)) { return csElement; }
 
             try
             {
@@ -171,15 +165,15 @@ namespace CppAst.CodeGen.CSharp
                     return null;
                 }
 
-                CppElement cppWithChildrenToVisit = cppElement;
+                var cppWithChildrenToVisit = cppElement;
 
                 switch (cppElement)
                 {
                     case CppCompilation cppCompilation:
-                        _cppCompilation = cppCompilation;
-                        _csCompilation = ConvertCompilation(cppCompilation, context);
-                        _cppCompilation.Diagnostics.CopyTo(_csCompilation.Diagnostics);
-                        csElement = _csCompilation;
+                        CurrentCppCompilation = cppCompilation;
+                        CurrentCSharpCompilation = ConvertCompilation(cppCompilation, context);
+                        CurrentCppCompilation.Diagnostics.CopyTo(CurrentCSharpCompilation.Diagnostics);
+                        csElement = CurrentCSharpCompilation;
                         ProcessConvertBegin();
                         break;
                     case CppEnum cppEnum:
@@ -191,14 +185,14 @@ namespace CppAst.CodeGen.CSharp
                     case CppClass cppClass:
                         csElement = TryConvertClass(cppClass, context);
                         break;
-                    case CppField cppField:
-                        csElement = TryConvertField(cppField, context);
-                        break;
                     case CppFunction cppFunction:
                         csElement = TryConvertFunction(cppFunction, context);
                         break;
                     case CppFunctionType cppFunctionType:
                         csElement = TryConvertFunctionType(cppFunctionType, context);
+                        break;
+                    case CppField cppField:
+                        csElement = TryConvertField(cppField, context);
                         break;
                     case CppParameter cppParameter:
                         csElement = TryConvertParameter(cppParameter, index, context);
@@ -221,16 +215,19 @@ namespace CppAst.CodeGen.CSharp
                 if (cppWithChildrenToVisit is ICppContainer container)
                 {
                     var subContext = csElement ?? context;
+                    var containerPushed = false;
 
-                    bool containerPushed = false;
                     if (subContext is ICSharpContainer csharpContainer && !(subContext is CSharpCompilation))
                     {
                         _currentContainers.Push(csharpContainer);
                         containerPushed = true;
                     }
+
+                    var childCount = 0;
+
                     foreach (var nestedCppElement in container.Children())
                     {
-                        Convert((CppElement)nestedCppElement, 0, subContext);
+                        Convert((CppElement)nestedCppElement, childCount++, subContext);
                     }
 
                     if (containerPushed)
@@ -251,86 +248,98 @@ namespace CppAst.CodeGen.CSharp
                     ProcessConvertEnd();
 
                     // Reset current CppCompilation and current CSharpCompilation
-                    _cppCompilation = null;
-                    _csCompilation = null;
+                    CurrentCppCompilation = null;
+                    CurrentCSharpCompilation = null;
                 }
             }
 
             return csElement;
         }
-        
+
         public CSharpComment GetCSharpComment(CppElement element, CSharpElement context)
         {
-            if (element == null) throw new ArgumentNullException(nameof(element));
-            if (context == null) throw new ArgumentNullException(nameof(context));
+            if (element == null) { throw new ArgumentNullException(nameof(element)); }
+            if (context == null) { throw new ArgumentNullException(nameof(context)); }
 
             for (var i = _pipeline.CommentConverters.Count - 1; i >= 0; i--)
             {
                 var commentConverter = _pipeline.CommentConverters[i];
                 var csComment = commentConverter(this, element, context);
+
                 if (csComment != null)
                 {
                     return csComment;
                 }
             }
+
             return null;
         }
 
         public bool IsFromSystemIncludes(CppElement cppElement)
         {
-            if (_cppCompilation == null) return false;
+            if (CurrentCppCompilation == null) { return false; }
 
             while (cppElement != null)
             {
-                if (cppElement == _cppCompilation.System)
+                if (cppElement == CurrentCppCompilation.System)
                 {
                     return true;
                 }
+
                 cppElement = cppElement.Parent as CppElement;
             }
+
             return false;
         }
 
         public string GetCSharpName(CppElement member, CSharpElement context, string defaultName = null)
         {
-            if (member == null) throw new ArgumentNullException(nameof(member));
-            if (context == null) throw new ArgumentNullException(nameof(context));
+            if (member == null) { throw new ArgumentNullException(nameof(member)); }
+            if (context == null) { throw new ArgumentNullException(nameof(context)); }
+
             string name = null;
+
             for (var i = _pipeline.GetCSharpNameResolvers.Count - 1; i >= 0; i--)
             {
                 var del = _pipeline.GetCSharpNameResolvers[i];
                 name = del(this, member, context);
+
                 if (name != null)
                 {
                     break;
                 }
             }
 
-            if (String.IsNullOrEmpty(name))
+            if (string.IsNullOrEmpty(name))
             {
                 name = (member as ICppMember)?.Name;
-                if (String.IsNullOrEmpty(name))
+
+                if (string.IsNullOrEmpty(name))
                 {
                     name = defaultName;
-                    if (String.IsNullOrEmpty(name))
+
+                    if (string.IsNullOrEmpty(name))
                     {
                         name = $"unsupported_name /* {member} */";
                     }
                 }
             }
+
             return CSharpHelper.EscapeName(name);
         }
 
         public CSharpType GetCSharpType(CppType cppType, CSharpElement context, bool nested = false)
         {
-            if (cppType == null) throw new ArgumentNullException(nameof(cppType));
-            if (context == null) throw new ArgumentNullException(nameof(context));
+            if (cppType == null) { throw new ArgumentNullException(nameof(cppType)); }
+            if (context == null) { throw new ArgumentNullException(nameof(context)); }
 
             CSharpType csType;
+
             for (var i = _pipeline.GetCSharpTypeResolvers.Count - 1; i >= 0; i--)
             {
                 var getCSharpTypeDelegate = _pipeline.GetCSharpTypeResolvers[i];
                 csType = getCSharpTypeDelegate(this, cppType, context, nested);
+
                 if (csType != null)
                 {
                     return csType;
@@ -341,33 +350,28 @@ namespace CppAst.CodeGen.CSharp
             return csType;
         }
 
-        //public CSharpVisibility GetCurrentCSharpVisibility(CSharpElement context)
-        //{
-        //    if (context == null) throw new ArgumentNullException(nameof(context));
-
-        //    var container = GetCSharpContainer(context);
-        //    if (container is CSharpTypeWithMembers typeWithMembers)
-        //    {
-        //        return typeWithMembers.Visibility;
-        //    }
-
-        //    return CSharpVisibility.None;
-        //}
-
         public void ApplyDefaultVisibility(ICSharpElementWithVisibility element, ICSharpContainer container)
         {
-            if (element == null) throw new ArgumentNullException(nameof(element));
-            if (container == null) throw new ArgumentNullException(nameof(container));
+            if (element == null) { throw new ArgumentNullException(nameof(element)); }
+            if (container == null) { throw new ArgumentNullException(nameof(container)); }
+
             // By default, make element public if parent is internal
-            var elementVisibility = container is CSharpTypeWithMembers typeWithMembers ? typeWithMembers.Visibility : CSharpVisibility.None;
-            if (elementVisibility == CSharpVisibility.Internal)
+            var elementVisibility = container is CSharpTypeWithMembers typeWithMembers
+                ? typeWithMembers.Visibility
+                : CSharpVisibility.None;
+
+            switch (elementVisibility)
             {
-                elementVisibility = CSharpVisibility.Public;
+                case CSharpVisibility.Internal:
+                    elementVisibility = CSharpVisibility.Public;
+                    break;
+                case CSharpVisibility.None:
+                    elementVisibility = Options.GenerateAsInternal
+                        ? CSharpVisibility.Internal
+                        : CSharpVisibility.Public;
+                    break;
             }
-            else if (elementVisibility == CSharpVisibility.None)
-            {
-                elementVisibility = Options.GenerateAsInternal ? CSharpVisibility.Internal : CSharpVisibility.Public;
-            }
+
             element.Visibility = elementVisibility;
         }
 
@@ -413,6 +417,7 @@ namespace CppAst.CodeGen.CSharp
             {
                 var tryProcessCompilation = _pipeline.CompilationConverters[i];
                 var element = tryProcessCompilation(this, item, context);
+
                 if (element != null)
                 {
                     return element;
@@ -421,13 +426,14 @@ namespace CppAst.CodeGen.CSharp
 
             return new CSharpCompilation();
         }
-        
+
         private CSharpElement TryConvertEnum(CppEnum item, CSharpElement context)
         {
             for (var i = _pipeline.EnumConverters.Count - 1; i >= 0; i--)
             {
                 var tryEnum = _pipeline.EnumConverters[i];
                 var element = tryEnum(this, item, context);
+
                 if (element != null)
                 {
                     return element;
@@ -443,6 +449,7 @@ namespace CppAst.CodeGen.CSharp
             {
                 var tryEnumItem = _pipeline.EnumItemConverters[i];
                 var element = tryEnumItem(this, item, context);
+
                 if (element != null)
                 {
                     return element;
@@ -458,6 +465,7 @@ namespace CppAst.CodeGen.CSharp
             {
                 var tryProcessClass = _pipeline.ClassConverters[i];
                 var element = tryProcessClass(this, item, context);
+
                 if (element != null)
                 {
                     return element;
@@ -473,6 +481,7 @@ namespace CppAst.CodeGen.CSharp
             {
                 var tryField = _pipeline.FieldConverters[i];
                 var element = tryField(this, item, context);
+
                 if (element != null)
                 {
                     return element;
@@ -488,6 +497,7 @@ namespace CppAst.CodeGen.CSharp
             {
                 var tryProcessFunction = _pipeline.FunctionConverters[i];
                 var element = tryProcessFunction(this, item, context);
+
                 if (element != null)
                 {
                     return element;
@@ -503,6 +513,7 @@ namespace CppAst.CodeGen.CSharp
             {
                 var tryProcessFunctionType = _pipeline.FunctionTypeConverters[i];
                 var element = tryProcessFunctionType(this, item, context);
+
                 if (element != null)
                 {
                     return element;
@@ -518,6 +529,7 @@ namespace CppAst.CodeGen.CSharp
             {
                 var tryProcessParameter = _pipeline.ParameterConverters[i];
                 var element = tryProcessParameter(this, item, index, context);
+
                 if (element != null)
                 {
                     return element;
@@ -533,6 +545,7 @@ namespace CppAst.CodeGen.CSharp
             {
                 var tryProcessTypedef = _pipeline.TypedefConverters[i];
                 var element = tryProcessTypedef(this, item, context);
+
                 if (element != null)
                 {
                     return element;
@@ -541,11 +554,11 @@ namespace CppAst.CodeGen.CSharp
 
             return null;
         }
-        
+
         public void AddUsing(ICSharpContainer container, string referenceName, string aliasName = null, bool isStatic = false)
         {
-            if (container == null) throw new ArgumentNullException(nameof(container));
-            if (referenceName == null) throw new ArgumentNullException(nameof(referenceName));
+            if (container == null) { throw new ArgumentNullException(nameof(container)); }
+            if (referenceName == null) { throw new ArgumentNullException(nameof(referenceName)); }
 
             var usingCompatibleContainer = container;
 
@@ -555,6 +568,7 @@ namespace CppAst.CodeGen.CSharp
                 {
                     break;
                 }
+
                 usingCompatibleContainer = usingCompatibleContainer.Parent;
             }
 
@@ -565,6 +579,7 @@ namespace CppAst.CodeGen.CSharp
 
             var members = usingCompatibleContainer.Members;
             int insertIndex = 0;
+
             for (int i = 0; i < members.Count; i++, insertIndex++)
             {
                 var member = members[i];
@@ -581,13 +596,13 @@ namespace CppAst.CodeGen.CSharp
                 }
             }
 
-            members.Insert(insertIndex, new CSharpUsingDeclaration(referenceName) { Alias = aliasName, IsStatic =  isStatic });
+            members.Insert(insertIndex, new CSharpUsingDeclaration(referenceName) { Alias = aliasName, IsStatic = isStatic });
         }
 
         private void Register(CppElement cppElement, CSharpElement element)
         {
-            if (cppElement == null) throw new ArgumentNullException(nameof(cppElement));
-            if (element == null) throw new ArgumentNullException(nameof(element));
+            if (cppElement == null) { throw new ArgumentNullException(nameof(cppElement)); }
+            if (element == null) { throw new ArgumentNullException(nameof(element)); }
 
             // Verify that a type map to a type
             if (cppElement is CppType && !(element is CSharpType))
@@ -595,31 +610,32 @@ namespace CppAst.CodeGen.CSharp
                 throw new InvalidOperationException($"The {nameof(CppType)} element `{cppElement}` is converted to an element of type `{element.GetType()}` while it should inherit from `{nameof(CSharpType)}`");
             }
 
-            CSharpElement csElement;
-            if (_mapCppToCSharp.TryGetValue(cppElement, out csElement))
+            if (_mapCppToCSharp.TryGetValue(cppElement, out var csElement))
             {
                 throw new InvalidOperationException($"The element `{cppElement}` is already registered to `{csElement}`");
             }
+
             element.CppElement = cppElement;
             _mapCppToCSharp[cppElement] = element;
         }
 
         public CSharpElement FindCSharpElement(CppElement cppElement)
         {
-            if (cppElement == null) throw new ArgumentNullException(nameof(cppElement));
+            if (cppElement == null) { throw new ArgumentNullException(nameof(cppElement)); }
             _mapCppToCSharp.TryGetValue(cppElement, out var csElement);
             return csElement;
         }
 
         public CSharpType FindCSharpType(CppType cppType)
         {
-            if (cppType == null) throw new ArgumentNullException(nameof(cppType));
-            return (CSharpType) FindCSharpElement(cppType);
+            if (cppType == null) { throw new ArgumentNullException(nameof(cppType)); }
+            return (CSharpType)FindCSharpElement(cppType);
         }
 
         public ICSharpContainer GetCSharpContainer(CppElement element, CSharpElement context)
         {
-            if (element.Parent != CurrentCppCompilation && element.Parent != CurrentCppCompilation.System)
+            if (!ReferenceEquals(element.Parent, CurrentCppCompilation) &&
+                !ReferenceEquals(element.Parent, CurrentCppCompilation.System))
             {
                 // Default implementation, returns the current context
                 var nextContext = context;
@@ -642,7 +658,6 @@ namespace CppAst.CodeGen.CSharp
             return GetCSharpContainerFromPlugins(element, context);
         }
 
-
         public ICSharpContainer GetCSharpCurrentContainer()
         {
             return _currentContainers.Count > 0 ? _currentContainers.Peek() : null;
@@ -654,32 +669,19 @@ namespace CppAst.CodeGen.CSharp
             {
                 var getCSharpContainer = _pipeline.GetCSharpContainerResolvers[i];
                 var container = getCSharpContainer(this, element, context);
+
                 if (container != null)
                 {
                     return container;
                 }
             }
+
             throw new InvalidOperationException($"Unable to find or create a CSharp container for the element `{element}`");
         }
 
-        public string ConvertExpression(CppExpression expression, CSharpElement context, CSharpType expressionType)
+        public string ConvertExpression(CppExpression expression)
         {
             return expression.ToString();
-        }
-    }
-
-    internal sealed class CppElementReferenceEqualityComparer : IEqualityComparer<CppElement>
-    {
-        public static readonly CppElementReferenceEqualityComparer Default = new CppElementReferenceEqualityComparer();
-
-        public bool Equals(CppElement x, CppElement y)
-        {
-            return ReferenceEquals(x, y);
-        }
-
-        public int GetHashCode(CppElement obj)
-        {
-            return RuntimeHelpers.GetHashCode(obj);
         }
     }
 }

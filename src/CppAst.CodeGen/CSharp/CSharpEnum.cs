@@ -8,9 +8,7 @@ namespace CppAst.CodeGen.CSharp
 {
     public class CSharpEnum : CSharpTypeWithMembers
     {
-        public CSharpEnum(string name) : base(name)
-        {
-        }
+        public CSharpEnum(string name) : base(name) { }
 
         public CSharpType IntegerBaseType => BaseTypes.Count > 0 ? BaseTypes[0] : null;
 
@@ -20,7 +18,8 @@ namespace CppAst.CodeGen.CSharp
 
         public override IEnumerable<CSharpAttribute> GetAttributes()
         {
-            foreach (var attr in base.GetAttributes()) yield return attr;
+            foreach (var attr in base.GetAttributes()) { yield return attr; }
+
             if (IsFlags)
             {
                 yield return new CSharpFreeAttribute("Flags");

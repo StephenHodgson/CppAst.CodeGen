@@ -20,9 +20,10 @@ namespace CppAst.CodeGen.CSharp
                     return match;
                 }
             }
+
             return null;
         }
-        
+
         public static CppElementMappingRule Discard(this CppElementMappingRule mappingRule)
         {
             mappingRule.CppElementActions.Add((converter, element, context, matches) =>
@@ -36,64 +37,55 @@ namespace CppAst.CodeGen.CSharp
         {
             mappingRule.CppElementActions.Add((converter, element, context, matches) =>
             {
-                if (!(element is ICppMember cppMember)) return;
-
+                if (!(element is ICppMember cppMember)) { return; }
                 var match = matches.FindMatch<CppElementRegexMatch>();
-                if (match?.RegexInput != null)
-                {
-                    cppMember.Name = Regex.Replace(match.RegexInput, match.RegexPattern, replaceName);
-                }
-                else
-                {
-                    cppMember.Name = replaceName;
-                }
+                cppMember.Name = match?.RegexInput != null
+                    ? Regex.Replace(match.RegexInput, match.RegexPattern, replaceName)
+                    : replaceName;
             });
+
             return mappingRule;
         }
 
         public static CppElementMappingRule Type(this CppElementMappingRule mappingRule, string type, int? arraySize = null)
         {
-            if (type == null) throw new ArgumentNullException(nameof(type));
-            mappingRule.TypeRemap = type;
+            mappingRule.TypeRemap = type ?? throw new ArgumentNullException(nameof(type));
             mappingRule.TypeRemapArraySize = arraySize;
 
             mappingRule.CppElementActions.Add((converter, element, context, matches) =>
             {
                 var remapType = DefaultMappingRulesConverter.GetCppTypeRemap(converter, mappingRule.TypeRemap, mappingRule.TypeRemapArraySize);
-                if (remapType == null) return;
+                if (remapType == null) { return; }
 
-                if (element is CppField cppField)
+                switch (element)
                 {
-                    cppField.Type = remapType;
+                    case CppField cppField:
+                        cppField.Type = remapType;
+                        break;
+                    case CppParameter cppParameter:
+                        cppParameter.Type = remapType;
+                        break;
+                    case CppFunction cppFunction:
+                        cppFunction.ReturnType = remapType;
+                        break;
                 }
-
-                if (element is CppParameter cppParameter)
-                {
-                    cppParameter.Type = remapType;
-                }
-
-                if (element is CppFunction cppFunction)
-                {
-                    cppFunction.ReturnType = remapType;
-                }
-
             });
 
             return mappingRule;
         }
-        
+
         public static CppElementMappingRule InitValue(this CppElementMappingRule mappingRule, string value)
         {
             mappingRule.CSharpElementActions.Add((converter, element, matches) =>
             {
-                if (element is CSharpField csField)
+                switch (element)
                 {
-                    csField.InitValue = value;
-                }
-
-                if (element is CSharpParameter csParam)
-                {
-                    csParam.DefaultValue = value;
+                    case CSharpField csField:
+                        csField.InitValue = value;
+                        break;
+                    case CSharpParameter csParam:
+                        csParam.DefaultValue = value;
+                        break;
                 }
             });
 
@@ -110,39 +102,51 @@ namespace CppAst.CodeGen.CSharp
             if (marshalAttribute == null) throw new ArgumentNullException(nameof(marshalAttribute));
 
             var clonedAttribute = cloneAttribute ? marshalAttribute.Clone() : marshalAttribute;
-            
+
             mappingRule.CSharpElementActions.Add((converter, element, matches) =>
             {
                 var csField = element as CSharpField;
-                var csParam = element as CSharpParameter;
                 var csMethod = element as CSharpMethod;
-                if (csField == null && csParam == null && csMethod == null) return;
+                var csParam = element as CSharpParameter;
+
+                if (csField == null && csParam == null && csMethod == null) { return; }
 
                 var type = csField?.FieldType ?? csParam?.ParameterType ?? csMethod?.ReturnType;
+
                 // Should not happen, but in case 
-                if (type == null) return;
-               
+                if (type == null) { return; }
+
                 if (type is CSharpTypeWithAttributes cppTypeWithAttributes)
                 {
                     for (var i = cppTypeWithAttributes.Attributes.Count - 1; i >= 0; i--)
                     {
-                        var attr = cppTypeWithAttributes.Attributes[i];
-                        if (attr is CSharpMarshalAttribute)
+                        if (cppTypeWithAttributes.Attributes[i] is CSharpMarshalAttribute)
                         {
                             cppTypeWithAttributes.Attributes.RemoveAt(i);
                             cppTypeWithAttributes.Attributes.Insert(i, clonedAttribute);
                             return;
                         }
                     }
+
                     cppTypeWithAttributes.Attributes.Add(clonedAttribute);
                 }
                 else
                 {
                     var typeWithAttributes = new CSharpTypeWithAttributes(type);
                     typeWithAttributes.Attributes.Add(clonedAttribute);
-                    if (csField != null) csField.FieldType = typeWithAttributes;
-                    else if (csParam != null) csParam.ParameterType = typeWithAttributes;
-                    else if (csMethod != null) csMethod.ReturnType = typeWithAttributes;
+
+                    if (csField != null)
+                    {
+                        csField.FieldType = typeWithAttributes;
+                    }
+                    else if (csParam != null)
+                    {
+                        csParam.ParameterType = typeWithAttributes;
+                    }
+                    else
+                    {
+                        csMethod.ReturnType = typeWithAttributes;
+                    }
                 }
             });
 
@@ -233,7 +237,7 @@ namespace CppAst.CodeGen.CSharp
                 ConstFieldName = enumItemName,
                 DeclarationFileName = mapOriginFilePath,
                 DeclarationLineNumber = mapLineNumber,
-                ExplicitCast = explicitCast,
+                ExplicitCast = explicitCast
             };
         }
 
@@ -246,7 +250,7 @@ namespace CppAst.CodeGen.CSharp
                 CppIntegerTypeName = integerType,
                 DeclarationFileName = mapOriginFilePath,
                 DeclarationLineNumber = mapLineNumber,
-                ExplicitCast = explicitCast,
+                ExplicitCast = explicitCast
             };
             return rule;
         }

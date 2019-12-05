@@ -8,18 +8,11 @@ using Zio;
 
 namespace CppAst.CodeGen.CSharp
 {
-    public enum CppTypedefCodeGenKind
-    {
-        Wrap,
-
-        NoWrap,
-    }
-    
     public class CSharpConverterOptions : CppParserOptions
     {
         public CSharpConverterOptions()
         {
-            Plugins = new List<ICSharpConverterPlugin>()
+            Plugins = new List<ICSharpConverterPlugin>
             {
                 new DefaultCommentConverter(),
                 new DefaultGetCSharpNamePlugin(),
@@ -35,7 +28,7 @@ namespace CppAst.CodeGen.CSharp
                 new DefaultFunctionTypeConverter(),
                 new DefaultTypeConverter(),
                 new DefaultDllImportConverter(),
-                new DefaultMappingRulesConverter(),
+                new DefaultMappingRulesConverter()
             };
 
             MappingRules = new CppMappingRules();
@@ -59,7 +52,7 @@ namespace CppAst.CodeGen.CSharp
         public UPath DefaultOutputFilePath { get; set; }
 
         public string DefaultClassLib { get; set; }
-        
+
         public bool GenerateAsInternal { get; set; }
 
         public string DefaultDllImportNameAndArguments { get; set; }
@@ -77,13 +70,13 @@ namespace CppAst.CodeGen.CSharp
         public bool GenerateEnumItemAsFields { get; set; }
 
         public CppTypedefCodeGenKind TypedefCodeGenKind { get; set; }
-        
+
         public HashSet<string> TypedefWrapWhiteList { get; }
 
         public Dictionary<string, object> Tags { get; private set; }
 
         public CppMappingRules MappingRules { get; private set; }
-        
+
         public List<ICSharpConverterPlugin> Plugins { get; private set; }
 
         public object this[string tagName]
@@ -93,10 +86,7 @@ namespace CppAst.CodeGen.CSharp
                 Tags.TryGetValue(tagName, out var obj);
                 return obj;
             }
-            set
-            {
-                Tags[tagName] = value;
-            }
+            set => Tags[tagName] = value;
         }
 
         public override CppParserOptions Clone()

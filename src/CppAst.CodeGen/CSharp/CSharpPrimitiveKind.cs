@@ -20,6 +20,6 @@ namespace CppAst.CodeGen.CSharp
         Double,
         Object,
         String,
-        IntPtr,
+        IntPtr
     }
 }

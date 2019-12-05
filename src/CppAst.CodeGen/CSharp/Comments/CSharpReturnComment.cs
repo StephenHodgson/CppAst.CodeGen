@@ -10,9 +10,9 @@ namespace CppAst.CodeGen.CSharp
     {
         public override void DumpTo(CodeWriter writer)
         {
-            writer.Write("<returns>");
+            writer.Write("<returns>\n");
             DumpChildrenTo(writer);
-            writer.WriteLine("</returns>");
+            writer.WriteLine("\n</returns>");
         }
     }
 }

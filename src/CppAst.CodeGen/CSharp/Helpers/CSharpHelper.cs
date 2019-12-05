@@ -4,6 +4,7 @@
 
 using System;
 using System.Runtime.InteropServices;
+using System.Text;
 using System.Text.RegularExpressions;
 
 namespace CppAst.CodeGen.CSharp
@@ -52,16 +53,31 @@ namespace CppAst.CodeGen.CSharp
 
         public static string ToPascal(string text)
         {
-            if (text == null) throw new ArgumentNullException(nameof(text));
-            if (text.Length == 0) return text;
+            if (text == null) { throw new ArgumentNullException(nameof(text)); }
+            if (text.Length == 0) { return text; }
 
-            if (char.IsLower(text[0]))
+            var builder = new StringBuilder();
+            for (var i = 0; i < text.Length; i++)
             {
-                if (text.Length == 1) return char.ToUpper(text[0]).ToString();
-                return char.ToUpper(text[0]) + text.Substring(1);
+                var value = text[i];
+
+                if (i == 0 && char.IsLower(value))
+                {
+                    value = char.ToUpper(value);
+                }
+
+                if (value == '_')
+                {
+                    builder.Append(char.ToUpper(text[i + 1]));
+                    i++;
+                }
+                else
+                {
+                    builder.Append(value);
+                }
             }
 
-            return text;
+            return builder.ToString();
         }
 
         internal static string AppendWithCasing(string name, CSharpCasingKind nameCasingKind, string nameToAppend, CSharpCasingKind nameToAppendCasingKind)
@@ -73,28 +89,28 @@ namespace CppAst.CodeGen.CSharp
                 {
                     if (nameCasingKind.IsPascal() && !nameToAppendCasingKind.IsPascal())
                     {
-                        name = name + "_" + ToPascal(nameToAppend);
+                        name = $"{name}_{ToPascal(nameToAppend)}";
                     }
                     else
                     {
-                        name = name + "_" + nameToAppend;
+                        name = $"{name}_{nameToAppend}";
                     }
                 }
                 else
                 {
                     if (nameCasingKind.IsPascal() && !nameToAppendCasingKind.IsPascal())
                     {
-                        name = name + ToPascal(nameToAppend);
+                        name += ToPascal(nameToAppend);
                     }
                     else
                     {
                         if (nameCasingKind == CSharpCasingKind.Lower && nameToAppendCasingKind == CSharpCasingKind.Lower)
                         {
-                            name = name + "_" + nameToAppend;
+                            name = $"{name}_{nameToAppend}";
                         }
                         else
                         {
-                            name = name + nameToAppend;
+                            name += nameToAppend;
                         }
                     }
                 }
@@ -115,7 +131,7 @@ namespace CppAst.CodeGen.CSharp
 
             return CSharpCasingKind.Undefined;
         }
-        
+
         public static CallingConvention GetCSharpCallingConvention(this CppCallingConvention cppCallingConvention)
         {
             switch (cppCallingConvention)
@@ -131,23 +147,9 @@ namespace CppAst.CodeGen.CSharp
                     return CallingConvention.ThisCall;
                 case CppCallingConvention.Win64:
                     return CallingConvention.Winapi;
-
-                case CppCallingConvention.X86Pascal:
-                case CppCallingConvention.AAPCS:
-                case CppCallingConvention.AAPCS_VFP:
-                case CppCallingConvention.X86RegCall:
-                case CppCallingConvention.IntelOclBicc:
-                case CppCallingConvention.X86_64SysV:
-                case CppCallingConvention.X86VectorCall:
-                case CppCallingConvention.Swift:
-                case CppCallingConvention.PreserveMost:
-                case CppCallingConvention.PreserveAll:
-                case CppCallingConvention.AArch64VectorCall:
-                case CppCallingConvention.Invalid:
-                case CppCallingConvention.Unexposed:
-                    break;
+                default:
+                    return CallingConvention.Cdecl;
             }
-            return CallingConvention.Cdecl;
         }
 
         public static CSharpPrimitiveType GetCSharpPrimitive(CppPrimitiveType cppType)

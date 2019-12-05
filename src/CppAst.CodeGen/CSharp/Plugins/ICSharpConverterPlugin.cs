@@ -5,6 +5,11 @@ namespace CppAst.CodeGen.CSharp
 {
     public interface ICSharpConverterPlugin
     {
+        /// <summary>
+        /// Register the converter plugin.
+        /// </summary>
+        /// <param name="converter"></param>
+        /// <param name="pipeline"></param>
         void Register(CSharpConverter converter, CSharpConverterPipeline pipeline);
     }
 }

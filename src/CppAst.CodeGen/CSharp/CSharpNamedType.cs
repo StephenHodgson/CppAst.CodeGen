@@ -23,6 +23,7 @@ namespace CppAst.CodeGen.CSharp
                 namedType.DumpReferenceTo(writer);
                 writer.Write(".");
             }
+
             writer.Write(Name);
         }
     }

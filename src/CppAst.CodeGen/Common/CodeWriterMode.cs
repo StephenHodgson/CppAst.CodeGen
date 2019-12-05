@@ -16,6 +16,6 @@ namespace CppAst.CodeGen.Common
         /// <summary>
         /// Generates simple details generally used for ToString()
         /// </summary>
-        Simple,
+        Simple
     }
 }

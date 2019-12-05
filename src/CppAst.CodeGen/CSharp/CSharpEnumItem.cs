@@ -29,11 +29,13 @@ namespace CppAst.CodeGen.CSharp
 
         public string Value { get; set; }
 
+        /// <inheritdoc />
         public virtual IEnumerable<CSharpAttribute> GetAttributes()
         {
             return Attributes;
         }
 
+        /// <inheritdoc />
         public override void DumpTo(CodeWriter writer)
         {
             if (writer.Mode == CodeWriterMode.Full) Comment?.DumpTo(writer);

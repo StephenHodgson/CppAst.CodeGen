@@ -10,6 +10,6 @@ namespace CppAst.CodeGen.CSharp
         Private,
         Protected,
         Internal,
-        ProtectedInternal,
+        ProtectedInternal
     }
 }

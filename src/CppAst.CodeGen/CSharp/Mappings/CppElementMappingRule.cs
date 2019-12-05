@@ -7,10 +7,6 @@ using System.Collections.Generic;
 
 namespace CppAst.CodeGen.CSharp
 {
-    public delegate void CppElementModifierDelegate(CSharpConverter converter, CppElement cppElement, CSharpElement context, List<ICppElementMatch> matches);
-
-    public delegate void CSharpElementModifierDelegate(CSharpConverter converter, CSharpElement csElement, List<ICppElementMatch> matches);
-
     public class CppElementMappingRule : CppElementMappingRuleBase
     {
         public CppElementMappingRule(params CppElementMatcher[] matchers)

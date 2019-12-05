@@ -14,6 +14,7 @@ namespace CppAst.CodeGen.CSharp
             Attributes = new List<CSharpAttribute>();
             Parameters = new List<CSharpParameter>();
         }
+
         public CSharpComment Comment { get; set; }
 
         public CSharpVisibility Visibility { get; set; }
@@ -26,9 +27,14 @@ namespace CppAst.CodeGen.CSharp
 
         public override void DumpTo(CodeWriter writer)
         {
-            if (writer.Mode == CodeWriterMode.Full) Comment?.DumpTo(writer);
             this.DumpAttributesTo(writer);
             ReturnType?.DumpContextualAttributesTo(writer, false, CSharpAttributeScope.Return);
+
+            if (writer.Mode == CodeWriterMode.Full)
+            {
+                Comment?.DumpTo(writer);
+            }
+
             Visibility.DumpTo(writer);
             writer.Write("delegate ");
             ReturnType?.DumpReferenceTo(writer);
@@ -39,9 +45,6 @@ namespace CppAst.CodeGen.CSharp
             writer.WriteLine();
         }
 
-        public virtual IEnumerable<CSharpAttribute> GetAttributes()
-        {
-            return Attributes;
-        }
+        public virtual IEnumerable<CSharpAttribute> GetAttributes() => Attributes;
     }
 }

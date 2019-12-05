@@ -23,7 +23,7 @@ namespace CppAst.CodeGen.CSharp
             }
 
             // Register the struct as soon as possible
-            var csFunction = new CSharpMethod() {CppElement = cppFunction};
+            var csFunction = new CSharpMethod {CppElement = cppFunction};
 
             var container = converter.GetCSharpContainer(cppFunction, context);
 

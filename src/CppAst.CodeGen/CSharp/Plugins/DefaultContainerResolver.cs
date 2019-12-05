@@ -8,9 +8,9 @@ using Zio;
 
 namespace CppAst.CodeGen.CSharp
 {
-    public class DefaultContainerResolver: ICSharpConverterPlugin
+    public class DefaultContainerResolver : ICSharpConverterPlugin
     {
-        private static readonly string CacheContainerKey = typeof(DefaultContainerResolver) + "." + nameof(CacheContainerKey);
+        private static readonly string CacheContainerKey = $"{typeof(DefaultContainerResolver)}.{nameof(CacheContainerKey)}";
 
         public void Register(CSharpConverter converter, CSharpConverterPipeline pipeline)
         {
@@ -23,40 +23,35 @@ namespace CppAst.CodeGen.CSharp
 
             if (cacheContainer == null)
             {
-                cacheContainer = new CacheContainer {DefaultClass = CreateClassLib(converter)};
+                cacheContainer = new CacheContainer { DefaultClass = CreateClassLib(converter) };
                 converter.Tags[CacheContainerKey] = cacheContainer;
             }
 
-            if (converter.Options.DispatchOutputPerInclude)
+            if (converter.Options.DispatchOutputPerInclude &&
+                !converter.IsFromSystemIncludes(element))
             {
-                var isFromSystemIncludes = converter.IsFromSystemIncludes(element);
+                var fileName = Path.GetFileNameWithoutExtension(element.Span.Start.File);
 
-                if (!isFromSystemIncludes)
+                if (fileName != null)
                 {
-                    var fileName = Path.GetFileNameWithoutExtension(element.Span.Start.File);
-
-                    if (fileName != null)
+                    if (cacheContainer.IncludeToClass.TryGetValue(fileName, out var csClassLib))
                     {
-                        if (cacheContainer.IncludeToClass.TryGetValue(fileName, out var csClassLib))
-                        {
-                            return csClassLib;
-                        }
-
-                        csClassLib = CreateClassLib(converter, UPath.Combine(UPath.Root, fileName + ".generated.cs"));
-                        cacheContainer.IncludeToClass.Add(fileName, csClassLib);
                         return csClassLib;
                     }
+
+                    csClassLib = CreateClassLib(converter, UPath.Combine(UPath.Root, $"{CSharpHelper.ToPascal(fileName)}.generated.cs"), fileName);
+                    cacheContainer.IncludeToClass.Add(fileName, csClassLib);
+                    return csClassLib;
                 }
             }
 
             return cacheContainer.DefaultClass;
         }
 
-        private static CSharpClass CreateClassLib(CSharpConverter converter, UPath? subFilePathOverride = null)
+        private static CSharpClass CreateClassLib(CSharpConverter converter, UPath? subFilePathOverride = null, string nameOverride = "")
         {
-            var compilation = converter.CurrentCSharpCompilation;
-
             var path = converter.Options.DefaultOutputFilePath;
+            var compilation = converter.CurrentCSharpCompilation;
 
             if (subFilePathOverride != null)
             {
@@ -69,7 +64,10 @@ namespace CppAst.CodeGen.CSharp
             var csNamespace = new CSharpNamespace(converter.Options.DefaultNamespace);
             csFile.Members.Add(csNamespace);
 
-            var csClassLib = new CSharpClass(converter.Options.DefaultClassLib);
+            var csClassName = string.IsNullOrWhiteSpace(nameOverride)
+                ? converter.Options.DefaultClassLib
+                : CSharpHelper.ToPascal(nameOverride);
+            var csClassLib = new CSharpClass(csClassName);
             csClassLib.Modifiers |= CSharpModifiers.Partial | CSharpModifiers.Static;
             converter.ApplyDefaultVisibility(csClassLib, csNamespace);
 

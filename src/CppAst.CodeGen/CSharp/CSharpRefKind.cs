@@ -10,6 +10,6 @@ namespace CppAst.CodeGen.CSharp
         In,
         Out,
         Ref,
-        RefReadOnly,
+        RefReadOnly
     }
 }

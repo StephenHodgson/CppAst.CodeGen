@@ -49,10 +49,12 @@ namespace CppAst.CodeGen.Common
 
             var filePath = UPath.Combine(UPath.Root, path);
             var directory = filePath.GetDirectory();
+
             if (!directory.IsEmpty && !fileSystem.DirectoryExists(directory))
             {
                 fileSystem.CreateDirectory(directory);
             }
+
             var finalWriter = new StreamWriter(new BufferedStream(fileSystem.CreateFile(filePath)));
             PushOutput(finalWriter, autoDispose);
         }
@@ -60,6 +62,7 @@ namespace CppAst.CodeGen.Common
         public virtual TextWriter PopOutput()
         {
             var writerOutput = _backendWriters.Pop();
+
             if (writerOutput.AutoDispose)
             {
                 writerOutput.Writer.Dispose();
@@ -108,6 +111,7 @@ namespace CppAst.CodeGen.Common
             if (text == null) throw new ArgumentNullException(nameof(text));
 
             var currentWriter = CurrentWriter;
+
             if (currentWriter == null)
             {
                 throw new InvalidOperationException($"The `{nameof(CurrentWriter)}` of this instance cannot be null. You must call `{nameof(PushOutput)}` before writing to this instance.");
@@ -121,16 +125,18 @@ namespace CppAst.CodeGen.Common
             if (hasMultiLine)
             {
                 var startIndex = 0;
+                var isNextNewLine = true;
                 var nextStartIndex = firstEndOfLine < 0 ? text.Length : firstEndOfLine + 1;
 
-                var isNextNewLine = true;
                 while (true)
                 {
                     if (_hasNewLine)
                     {
-                        WriteIndentAndPrefix();
+                        WriteIndent();
+                        WritePrefix();
                         _hasNewLine = false;
                     }
+
                     _hasNewLine = isNextNewLine;
 
                     var subText = NormalizeLine(text.Substring(startIndex, nextStartIndex - startIndex));
@@ -144,6 +150,7 @@ namespace CppAst.CodeGen.Common
                     }
 
                     nextStartIndex = text.IndexOf('\n', startIndex);
+
                     if (nextStartIndex < 0)
                     {
                         isNextNewLine = false;
@@ -152,19 +159,28 @@ namespace CppAst.CodeGen.Common
                     else
                     {
                         isNextNewLine = true;
-                        nextStartIndex = nextStartIndex + 1;
+                        nextStartIndex += 1;
                     }
                 }
             }
             else
             {
+                var normalizedLineText = NormalizeLine(text);
+
                 if (_hasNewLine)
                 {
-                    WriteIndentAndPrefix();
+                    if (!string.IsNullOrWhiteSpace(normalizedLineText))
+                    {
+                        WriteIndent();
+                    }
+
+                    WritePrefix();
                     _hasNewLine = false;
                 }
-                currentWriter.Write(NormalizeLine(text));
+
+                currentWriter.Write(normalizedLineText);
             }
+
             _hasNewLine = hasTrailingEndOfLine;
             return this;
         }
@@ -175,27 +191,39 @@ namespace CppAst.CodeGen.Common
             if (text.EndsWith("\n"))
             {
                 text = text.TrimEnd('\r', '\n');
-                return text + (Options.NewLine ?? "\n");
+                return $"{text}{Options.NewLine ?? "\n"}";
             }
 
             return text;
         }
 
-        private void WriteIndentAndPrefix()
+        private void WriteIndent()
         {
             var currentWriter = CurrentWriter;
+
             if (currentWriter == null)
             {
                 throw new InvalidOperationException($"The {nameof(CurrentWriter)} of this instance cannot be null");
             }
 
             var indentSize = Options.IndentSize;
+
             for (int i = 0; i < _indentLevel; i++)
             {
                 for (int j = 0; j < indentSize; j++)
                 {
                     currentWriter.Write(" ");
                 }
+            }
+        }
+
+        public void WritePrefix()
+        {
+            var currentWriter = CurrentWriter;
+
+            if (currentWriter == null)
+            {
+                throw new InvalidOperationException($"The {nameof(CurrentWriter)} of this instance cannot be null");
             }
 
             // Print all prefixes after indent
@@ -220,7 +248,7 @@ namespace CppAst.CodeGen.Common
 
         public override string ToString()
         {
-            return CurrentWriter != null ? CurrentWriter.ToString() : string.Empty; 
+            return CurrentWriter != null ? CurrentWriter.ToString() : string.Empty;
         }
 
         private readonly struct WriterOutput

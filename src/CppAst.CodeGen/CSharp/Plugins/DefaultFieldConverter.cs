@@ -3,60 +3,60 @@
 // See license.txt file in the project root for full license information.
 
 using System;
-using System.Diagnostics;
 using System.Runtime.InteropServices;
 using CppAst.CodeGen.Common;
 
 namespace CppAst.CodeGen.CSharp
 {
     [StructLayout(LayoutKind.Explicit)]
-    public class DefaultFieldConverter: ICSharpConverterPlugin
+    public class DefaultFieldConverter : ICSharpConverterPlugin
     {
         private const string BitFieldName = "__bitfield__";
-        
+
+        /// <inheritdoc />
         public void Register(CSharpConverter converter, CSharpConverterPipeline pipeline)
         {
             pipeline.FieldConverters.Add(ConvertField);
         }
-        
+
         public static CSharpElement ConvertField(CSharpConverter converter, CppField cppField, CSharpElement context)
         {
             // Early exit if this is a global variable (we don't handle dllexport)
             bool isConst = cppField.Type is CppQualifiedType qualifiedType && qualifiedType.Qualifier == CppTypeQualifier.Const;
             var isGlobalVariable = (!(cppField.Parent is CppClass) && !isConst) || cppField.StorageQualifier == CppStorageQualifier.Static;
+
             if (isGlobalVariable)
             {
                 return null;
             }
 
             var isParentClass = cppField.Parent is CppClass;
-
             var csContainer = converter.GetCSharpContainer(cppField, context);
-
             var isUnion = ((cppField.Parent as CppClass)?.ClassKind ?? CppClassKind.Struct) == CppClassKind.Union;
-
             var csFieldName = converter.GetCSharpName(cppField, (CSharpElement)csContainer);
 
             if (cppField.IsBitField)
             {
                 CSharpBitField csBitFieldStorage = null;
+
                 for (var index = csContainer.Members.Count - 1; index >= 0; index--)
                 {
-                    var member = csContainer.Members[index];
-                    if (member is CSharpField csPreviousField)
+                    if (csContainer.Members[index] is CSharpField csPreviousField)
                     {
                         csBitFieldStorage = csPreviousField as CSharpBitField;
                         break;
                     }
                 }
 
-                if (csBitFieldStorage == null || (csBitFieldStorage.CurrentBitWidth + cppField.BitFieldWidth) > csBitFieldStorage.MaxBitWidth)
+                if (csBitFieldStorage == null ||
+                    (csBitFieldStorage.CurrentBitWidth + cppField.BitFieldWidth) > csBitFieldStorage.MaxBitWidth)
                 {
                     var canonicalType = (CppPrimitiveType)cppField.Type.GetCanonicalType();
-                    csBitFieldStorage = new CSharpBitField(BitFieldName + csContainer.Members.Count)
+                    csBitFieldStorage = new CSharpBitField($"{BitFieldName}{csContainer.Members.Count}")
                     {
-                        Visibility = CSharpVisibility.Private, 
+                        Visibility = CSharpVisibility.Private
                     };
+
                     switch (canonicalType.Kind)
                     {
                         case CppPrimitiveKind.Bool:
@@ -100,10 +100,10 @@ namespace CppAst.CodeGen.CSharp
                             csBitFieldStorage.MaxBitWidth = 64;
                             break;
                         default:
-                            csBitFieldStorage.FieldType = new CSharpFreeType("unsupported_bitfield_type_" + canonicalType);
+                            csBitFieldStorage.FieldType = new CSharpFreeType($"unsupported_bitfield_type_{canonicalType}");
                             csBitFieldStorage.MaxBitWidth = 128;
                             break;
-                    } 
+                    }
                     csContainer.Members.Add(csBitFieldStorage);
                 }
 
@@ -113,30 +113,39 @@ namespace CppAst.CodeGen.CSharp
                 var csProperty = new CSharpProperty(csFieldName)
                 {
                     CppElement = cppField,
-                    LinkedField = csBitFieldStorage,
+                    LinkedField = csBitFieldStorage
                 };
+
                 converter.ApplyDefaultVisibility(csProperty, csContainer);
                 csProperty.Comment = converter.GetCSharpComment(cppField, csProperty);
 
                 var bitmask = (1L << cppField.BitFieldWidth) - 1;
                 var bitmaskStr = $"0b{Convert.ToString(bitmask, 2)}";
                 var notBitMaskStr = Convert.ToString(~(bitmask << currentBitOffset), 2);
+
                 if (notBitMaskStr.Length > csBitFieldStorage.MaxBitWidth)
                 {
                     notBitMaskStr = notBitMaskStr.Substring(notBitMaskStr.Length - csBitFieldStorage.MaxBitWidth);
                 }
-                
+
                 csProperty.ReturnType = converter.GetCSharpType(cppField.Type, csProperty);
-                csProperty.GetBody = (writer, element) =>
+                csProperty.GetBody = CsPropertyGetBody;
+                csProperty.SetBody = CsPropertySetBody;
+                csContainer.Members.Add(csProperty);
+
+                return csProperty;
+
+                void CsPropertyGetBody(CodeWriter writer, CSharpElement element)
                 {
-                    writer.Write($"return unchecked((");
+                    writer.Write("return unchecked((");
                     csProperty.ReturnType.DumpReferenceTo(writer);
                     writer.Write(")");
                     writer.Write($"(({csBitFieldStorage.Name} >> {currentBitOffset}) & {bitmaskStr})");
                     writer.Write(");");
                     writer.WriteLine();
-                };
-                csProperty.SetBody = (writer, element) =>
+                }
+
+                void CsPropertySetBody(CodeWriter writer, CSharpElement element)
                 {
                     writer.Write($"{csBitFieldStorage.Name} = ({csBitFieldStorage.Name} & unchecked((");
                     csBitFieldStorage.FieldType.DumpReferenceTo(writer);
@@ -146,54 +155,42 @@ namespace CppAst.CodeGen.CSharp
                     csBitFieldStorage.FieldType.DumpReferenceTo(writer);
                     writer.Write($"){bitmaskStr})) << {currentBitOffset}));");
                     writer.WriteLine();
-                };
-    
-                csContainer.Members.Add(csProperty);
-                return csProperty;
+                }
             }
-            else
+
+            var csField = new CSharpField(csFieldName) { CppElement = cppField };
+            converter.ApplyDefaultVisibility(csField, csContainer);
+
+            if (isConst)
             {
-                var parentName = cppField.Parent is CppClass cppClass ? cppClass.Name : string.Empty;
-                var csField = new CSharpField(csFieldName) { CppElement = cppField };
-                converter.ApplyDefaultVisibility(csField, csContainer);
-
-                if (isConst)
-                {
-                    if (isParentClass)
-                    {
-                        csField.Modifiers |= CSharpModifiers.ReadOnly;
-                    }
-                    else
-                    {
-                        csField.Modifiers |= CSharpModifiers.Const;
-                    }
-                }
-
-                csContainer.Members.Add(csField);
-
-                csField.Comment = converter.GetCSharpComment(cppField, csField);
-
-                if (isUnion)
-                {
-                    csField.Attributes.Add(new CSharpFreeAttribute("FieldOffset(0)"));
-                    converter.AddUsing(csContainer, "System.Runtime.InteropServices");
-                }
-                csField.FieldType = converter.GetCSharpType(cppField.Type, csField);
-
-                if (cppField.InitExpression != null)
-                {
-                    if (cppField.InitExpression.Kind == CppExpressionKind.Unexposed)
-                    {
-                        csField.InitValue = cppField.InitValue?.Value?.ToString();
-                    }
-                    else
-                    {
-                        csField.InitValue = converter.ConvertExpression(cppField.InitExpression, context, csField.FieldType);
-                    }
-                }
-
-                return csField;
+                csField.Modifiers |= isParentClass
+                    ? CSharpModifiers.ReadOnly
+                    : CSharpModifiers.Const;
             }
+
+            csContainer.Members.Add(csField);
+
+            if (isUnion)
+            {
+                csField.Attributes.Add(new CSharpFreeAttribute("FieldOffset(0)"));
+                converter.AddUsing(csContainer, "System.Runtime.InteropServices");
+            }
+
+            csField.FieldType = converter.GetCSharpType(cppField.Type, csField);
+
+            if (!(csField.FieldType is CSharpDelegate))
+            {
+                csField.Comment = converter.GetCSharpComment(cppField, csField);
+            }
+
+            if (cppField.InitExpression != null)
+            {
+                csField.InitValue = cppField.InitExpression.Kind == CppExpressionKind.Unexposed
+                    ? cppField.InitValue?.Value?.ToString()
+                    : converter.ConvertExpression(cppField.InitExpression);
+            }
+
+            return csField;
         }
     }
 }

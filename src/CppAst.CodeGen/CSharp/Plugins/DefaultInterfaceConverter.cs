@@ -30,7 +30,7 @@ namespace CppAst.CodeGen.CSharp
             var csInterfaceName = converter.GetCSharpName(cppClass, context);
             var csInterface = new CSharpInterface(csInterfaceName)
             {
-                CppElement = cppClass,
+                CppElement = cppClass
             };
 
             var container = converter.GetCSharpContainer(cppClass, context);

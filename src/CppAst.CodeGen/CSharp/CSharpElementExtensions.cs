@@ -13,10 +13,11 @@ namespace CppAst.CodeGen.CSharp
         public static void DumpMembersTo(this ICSharpContainer element, CodeWriter writer)
         {
             var members = element.Members;
+
             for (var i = 0; i < members.Count; i++)
             {
                 var elementMember = members[i];
-                if (i > 0) writer.WriteLine();
+                if (i > 0) { writer.WriteLine(); }
                 elementMember.DumpTo(writer);
             }
         }
@@ -112,7 +113,7 @@ namespace CppAst.CodeGen.CSharp
         public static void DumpAttributesTo(this ICSharpAttributesProvider element, CodeWriter writer)
         {
             var mode = writer.Mode;
-            if (mode == CodeWriterMode.Simple) return;
+            if (mode == CodeWriterMode.Simple) { return; }
 
             foreach (var attr in element.GetAttributes())
             {
@@ -122,20 +123,22 @@ namespace CppAst.CodeGen.CSharp
                 writer.WriteLine();
             }
         }
-        
+
         public static void DumpContextualAttributesTo(this CSharpElement element, CodeWriter writer, bool inline = false, CSharpAttributeScope? scopeOverride = null)
         {
-            var provider = element as ICSharpContextualAttributesProvider;
-            if (provider == null)
+            if (!(element is ICSharpContextualAttributesProvider provider))
             {
                 return;
             }
+
             var mode = writer.Mode;
-            if (mode == CodeWriterMode.Simple) return;
+
+            if (mode == CodeWriterMode.Simple) { return; }
 
             if (inline)
             {
                 bool isFirst = true;
+
                 foreach (var attr in provider.GetContextualAttributes())
                 {
                     if (isFirst)
@@ -156,6 +159,7 @@ namespace CppAst.CodeGen.CSharp
                     {
                         attr.DumpTo(writer);
                     }
+
                     writer.Write("] ");
                 }
             }
@@ -164,6 +168,7 @@ namespace CppAst.CodeGen.CSharp
                 foreach (var attr in provider.GetContextualAttributes())
                 {
                     writer.Write("[");
+
                     if (scopeOverride.HasValue)
                     {
                         attr.DumpTo(writer, scopeOverride.Value);
@@ -172,6 +177,7 @@ namespace CppAst.CodeGen.CSharp
                     {
                         attr.DumpTo(writer);
                     }
+
                     writer.Write("]");
                     writer.WriteLine();
                 }
@@ -181,10 +187,11 @@ namespace CppAst.CodeGen.CSharp
         public static void DumpTo(this List<CSharpParameter> parameters, CodeWriter writer)
         {
             writer.Write("(");
+
             for (var i = 0; i < parameters.Count; i++)
             {
                 var param = parameters[i];
-                if (i > 0) writer.Write(", ");
+                if (i > 0) { writer.Write(", "); }
                 param.DumpTo(writer);
             }
 
