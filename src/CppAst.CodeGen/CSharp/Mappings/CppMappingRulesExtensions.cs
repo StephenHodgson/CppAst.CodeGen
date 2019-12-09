@@ -85,7 +85,7 @@ namespace CppAst.CodeGen.CSharp
             {
                 if (!(context is CSharpMethod)) { return; }
 
-                var fileName = Path.GetFileNameWithoutExtension(cppElement.SourceFile);
+                var fileName = Path.GetFileName(cppElement.SourceFile);
 
                 if (string.IsNullOrWhiteSpace(fileName))
                 {
