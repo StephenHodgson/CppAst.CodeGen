@@ -8,7 +8,6 @@ namespace CppAst.CodeGen.CSharp
     {
         public CSharpStruct(string name) : base(name)
         {
-            Modifiers = CSharpModifiers.Partial;
         }
 
         protected override string DeclarationKind => "struct";

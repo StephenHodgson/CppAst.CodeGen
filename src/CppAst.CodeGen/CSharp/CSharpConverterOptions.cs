@@ -89,6 +89,7 @@ namespace CppAst.CodeGen.CSharp
             set => Tags[tagName] = value;
         }
 
+        /// <inheritdoc />
         public override CppParserOptions Clone()
         {
             var csConverterOptions = (CSharpConverterOptions)base.Clone();

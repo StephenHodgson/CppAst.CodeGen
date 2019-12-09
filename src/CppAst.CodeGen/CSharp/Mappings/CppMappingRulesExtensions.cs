@@ -4,6 +4,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Runtime.CompilerServices;
 using System.Text.RegularExpressions;
 
@@ -74,9 +75,48 @@ namespace CppAst.CodeGen.CSharp
             return mappingRule;
         }
 
+        public static CppElementMappingRule DllImportLibrary(this CppElementMappingRule mappingRule, string headerName, string value)
+        {
+            bool isHeaderMatch = false;
+            mappingRule.CppElementActions.Add(CppRule);
+            mappingRule.CSharpElementActions.Add(CsRule);
+
+            void CppRule(CSharpConverter converter, CppElement cppElement, CSharpElement context, List<ICppElementMatch> matches)
+            {
+                if (!(context is CSharpMethod)) { return; }
+
+                var fileName = Path.GetFileNameWithoutExtension(cppElement.SourceFile);
+
+                if (string.IsNullOrWhiteSpace(fileName))
+                {
+                    return;
+                }
+
+                isHeaderMatch = headerName == fileName;
+            }
+
+            void CsRule(CSharpConverter converter, CSharpElement csElement, List<ICppElementMatch> matches)
+            {
+                if (!(csElement is CSharpMethod csMethod) || !isHeaderMatch) { return; }
+
+                foreach (var attribute in csMethod.Attributes)
+                {
+                    if (attribute is CSharpDllImportAttribute dllImportAttribute)
+                    {
+                        dllImportAttribute.DllName = value;
+                        break;
+                    }
+                }
+            }
+
+            return mappingRule;
+        }
+
         public static CppElementMappingRule InitValue(this CppElementMappingRule mappingRule, string value)
         {
-            mappingRule.CSharpElementActions.Add((converter, element, matches) =>
+            mappingRule.CSharpElementActions.Add(Rule);
+
+            void Rule(CSharpConverter converter, CSharpElement element, List<ICppElementMatch> matches)
             {
                 switch (element)
                 {
@@ -87,7 +127,7 @@ namespace CppAst.CodeGen.CSharp
                         csParam.DefaultValue = value;
                         break;
                 }
-            });
+            }
 
             return mappingRule;
         }
@@ -186,19 +226,25 @@ namespace CppAst.CodeGen.CSharp
 
         public static CppElementMappingRule CppAction(this CppElementMappingRule mappingRule, Action<CSharpConverter, CppElement> action)
         {
-            mappingRule.CppElementActions.Add((converter, element, context, match) =>
+            mappingRule.CppElementActions.Add(Action);
+
+            void Action(CSharpConverter converter, CppElement element, CSharpElement context, List<ICppElementMatch> match)
             {
                 action(converter, element);
-            });
+            }
+
             return mappingRule;
         }
 
         public static CppElementMappingRule CSharpAction(this CppElementMappingRule mappingRule, Action<CSharpConverter, CSharpElement> action)
         {
-            mappingRule.CSharpElementActions.Add((converter, csElement, match) =>
+            mappingRule.CSharpElementActions.Add(Action);
+
+            void Action(CSharpConverter converter, CSharpElement csElement, List<ICppElementMatch> match)
             {
                 action(converter, csElement);
-            });
+            }
+
             return mappingRule;
         }
 
@@ -243,7 +289,7 @@ namespace CppAst.CodeGen.CSharp
 
         public static CppMacroToEnumMappingRule MapMacroToEnum(this CppMappingRules dispatcher, string cppRegexName, string cppEnumTypeName, string cppEnumItemName = null, string integerType = "int", bool explicitCast = false, [CallerFilePath] string mapOriginFilePath = null, [CallerLineNumber] int mapLineNumber = 0)
         {
-            var rule = new CppMacroToEnumMappingRule(new CppElementRegexMatcher(cppRegexName))
+            return new CppMacroToEnumMappingRule(new CppElementRegexMatcher(cppRegexName))
             {
                 CppEnumTypeName = cppEnumTypeName,
                 CppEnumItemName = cppEnumItemName,
@@ -252,7 +298,6 @@ namespace CppAst.CodeGen.CSharp
                 DeclarationLineNumber = mapLineNumber,
                 ExplicitCast = explicitCast
             };
-            return rule;
         }
 
         public static CppElementMappingRule MapType(this CppMappingRules dispatcher, string cppType, string csType, [CallerFilePath] string mapOriginFilePath = null, [CallerLineNumber] int mapLineNumber = 0)

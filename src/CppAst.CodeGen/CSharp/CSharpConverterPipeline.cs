@@ -72,7 +72,7 @@ namespace CppAst.CodeGen.CSharp
         public List<GlobalProcessingDelegate> ConvertEnd { get; }
 
         public List<ICSharpConverterPlugin> RegisteredPlugins { get; }
-        
+
         public void RegisterPlugins(CSharpConverter converter)
         {
             if (converter == null) throw new ArgumentNullException(nameof(converter));
@@ -99,6 +99,7 @@ namespace CppAst.CodeGen.CSharp
             for (var index = Options.Plugins.Count - 1; index >= 0; index--)
             {
                 var plugin = Options.Plugins[index];
+
                 if (RegisteredPlugins.Contains(plugin))
                 {
                     continue;

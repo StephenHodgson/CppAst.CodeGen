@@ -68,7 +68,7 @@ namespace CppAst.CodeGen.CSharp
                 ? converter.Options.DefaultClassLib
                 : CSharpHelper.ToPascal(nameOverride);
             var csClassLib = new CSharpClass(csClassName);
-            csClassLib.Modifiers |= CSharpModifiers.Partial | CSharpModifiers.Static;
+            csClassLib.Modifiers |= /*CSharpModifiers.Partial |*/ CSharpModifiers.Static;
             converter.ApplyDefaultVisibility(csClassLib, csNamespace);
 
             csNamespace.Members.Add(csClassLib);

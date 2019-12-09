@@ -8,7 +8,6 @@ namespace CppAst.CodeGen.CSharp
     {
         public CSharpClass(string name) : base(name)
         {
-            Modifiers = CSharpModifiers.Partial;
         }
 
         protected override string DeclarationKind => "class";

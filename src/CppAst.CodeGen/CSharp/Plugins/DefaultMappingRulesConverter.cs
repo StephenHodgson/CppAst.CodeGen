@@ -20,6 +20,7 @@ namespace CppAst.CodeGen.CSharp
         public void Register(CSharpConverter converter, CSharpConverterPipeline pipeline)
         {
             var cachedRules = GetCachedRules(converter);
+
             // Register to the pipeline only we have anything to process
             if (!cachedRules.IsEmpty)
             {
@@ -33,8 +34,6 @@ namespace CppAst.CodeGen.CSharp
                 pipeline.Converted.Add(ProcessCSharpElementMappingRules);
             }
         }
-
-        private static readonly Regex MatchTypedef = new Regex(@"^(\d+)_typedef$");
 
         private static void ProcessTypedefs(CSharpConverter converter)
         {
