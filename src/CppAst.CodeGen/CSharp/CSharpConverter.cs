@@ -149,7 +149,9 @@ namespace CppAst.CodeGen.CSharp
 
         private CSharpElement Convert(CppElement cppElement, int index, CSharpElement context)
         {
-            if (_mapCppToCSharp.TryGetValue(cppElement, out var csElement))
+            var csElement = FindCSharpElement(cppElement);
+
+            if (csElement != null)
             {
                 return csElement;
             }
@@ -199,6 +201,7 @@ namespace CppAst.CodeGen.CSharp
                         break;
                     case CppTypedef cppTypedef:
                         csElement = TryConvertTypedef(cppTypedef, context);
+
                         // Workaround to force the visit of typedef
                         if (csElement?.CppElement is CppFunctionType)
                         {
@@ -300,8 +303,7 @@ namespace CppAst.CodeGen.CSharp
 
             for (var i = _pipeline.GetCSharpNameResolvers.Count - 1; i >= 0; i--)
             {
-                var del = _pipeline.GetCSharpNameResolvers[i];
-                name = del(this, member, context);
+                name = _pipeline.GetCSharpNameResolvers[i](this, member, context);
 
                 if (name != null)
                 {
@@ -334,8 +336,7 @@ namespace CppAst.CodeGen.CSharp
 
             for (var i = _pipeline.GetCSharpTypeResolvers.Count - 1; i >= 0; i--)
             {
-                var getCSharpTypeDelegate = _pipeline.GetCSharpTypeResolvers[i];
-                var csType = getCSharpTypeDelegate(this, cppType, context, nested);
+                var csType = _pipeline.GetCSharpTypeResolvers[i](this, cppType, context, nested);
 
                 if (csType != null)
                 {
@@ -592,11 +593,12 @@ namespace CppAst.CodeGen.CSharp
             if (cppElement == null) { throw new ArgumentNullException(nameof(cppElement)); }
             if (element == null) { throw new ArgumentNullException(nameof(element)); }
 
-            // Verify that a type map to a type
-            if (cppElement is CppType && !(element is CSharpType))
-            {
-                throw new InvalidOperationException($"The {nameof(CppType)} element `{cppElement}` is converted to an element of type `{element.GetType()}` while it should inherit from `{nameof(CSharpType)}`");
-            }
+            //// Verify that a type maps to a type
+            //if (cppElement is CppType &&
+            //    !(element is CSharpType))
+            //{
+            //    throw new InvalidOperationException($"The {nameof(CppType)} element `{cppElement}` is converted to an element of type `{element.GetType()}` while it should inherit from `{nameof(CSharpType)}`");
+            //}
 
             if (_mapCppToCSharp.TryGetValue(cppElement, out var csElement))
             {
@@ -605,6 +607,16 @@ namespace CppAst.CodeGen.CSharp
 
             element.CppElement = cppElement;
             _mapCppToCSharp[cppElement] = element;
+        }
+
+        public CSharpType FindCSharpType(CppType cppType)
+        {
+            if (cppType == null)
+            {
+                throw new ArgumentNullException(nameof(cppType));
+            }
+
+            return (CSharpType)FindCSharpElement(cppType);
         }
 
         public CSharpElement FindCSharpElement(CppElement cppElement)
@@ -616,16 +628,6 @@ namespace CppAst.CodeGen.CSharp
 
             _mapCppToCSharp.TryGetValue(cppElement, out var csElement);
             return csElement;
-        }
-
-        public CSharpType FindCSharpType(CppType cppType)
-        {
-            if (cppType == null)
-            {
-                throw new ArgumentNullException(nameof(cppType));
-            }
-
-            return (CSharpType)FindCSharpElement(cppType);
         }
 
         public ICSharpContainer GetCSharpContainer(CppElement element, CSharpElement context)

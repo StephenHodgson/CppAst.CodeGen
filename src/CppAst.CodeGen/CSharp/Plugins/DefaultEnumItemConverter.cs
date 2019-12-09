@@ -29,10 +29,10 @@ namespace CppAst.CodeGen.CSharp
             // Process any enum item value expression (e.g ENUM_ITEM = 1 << 2)
             if (cppEnumItem.ValueExpression != null)
             {
-                var integerValue = converter.ConvertExpression(cppEnumItem.ValueExpression);
-                var enumValue = string.IsNullOrEmpty(integerValue)
+                var expressionValue = converter.ConvertExpression(cppEnumItem.ValueExpression);
+                var enumValue = string.IsNullOrEmpty(expressionValue)
                     ? $"{cppEnumItem.Value}"
-                    : integerValue;
+                    : expressionValue;
                 csEnumItem.Value = $"unchecked(({csEnum.IntegerBaseType}){enumValue})";
 
                 // Tag the enum has flags
