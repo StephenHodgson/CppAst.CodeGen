@@ -75,7 +75,7 @@ namespace CppAst.CodeGen.CSharp
             return mappingRule;
         }
 
-        public static CppElementMappingRule DllImportLibrary(this CppElementMappingRule mappingRule, string headerName, string value)
+        public static CppElementMappingRule DllImportLibrary(this CppElementMappingRule mappingRule, string dllImportName, string headerFileName)
         {
             bool isHeaderMatch = false;
             mappingRule.CppElementActions.Add(CppRule);
@@ -92,7 +92,7 @@ namespace CppAst.CodeGen.CSharp
                     return;
                 }
 
-                isHeaderMatch = headerName == fileName;
+                isHeaderMatch = fileName == headerFileName;
             }
 
             void CsRule(CSharpConverter converter, CSharpElement csElement, List<ICppElementMatch> matches)
@@ -103,7 +103,7 @@ namespace CppAst.CodeGen.CSharp
                 {
                     if (attribute is CSharpDllImportAttribute dllImportAttribute)
                     {
-                        dllImportAttribute.DllName = value;
+                        dllImportAttribute.DllName = dllImportName;
                         break;
                     }
                 }
