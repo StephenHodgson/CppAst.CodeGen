@@ -8,13 +8,13 @@ using System.Runtime.InteropServices;
 namespace CppAst.CodeGen.CSharp
 {
     [StructLayout(LayoutKind.Explicit)]
-    public class DefaultStructConverter: ICSharpConverterPlugin
+    public class DefaultStructConverter : ICSharpConverterPlugin
     {
         public void Register(CSharpConverter converter, CSharpConverterPipeline pipeline)
         {
             pipeline.ClassConverters.Add(ConvertClass);
         }
-        
+
         public static CSharpElement ConvertClass(CSharpConverter converter, CppClass cppClass, CSharpElement context)
         {
             // This converter supports only plain struct or union
@@ -25,26 +25,23 @@ namespace CppAst.CodeGen.CSharp
 
             // Register the struct as soon as possible
             var csStructName = converter.GetCSharpName(cppClass, context);
-            var csStruct = new CSharpStruct(csStructName)
-            {
-                CppElement = cppClass
-            };
-
+            var csStruct = new CSharpStruct(csStructName) { CppElement = cppClass };
             var container = converter.GetCSharpContainer(cppClass, context);
             converter.ApplyDefaultVisibility(csStruct, container);
+
             if (container is CSharpInterface)
             {
                 container = container.Parent;
             }
-            container.Members.Add(csStruct);
 
+            container.Members.Add(csStruct);
             csStruct.Comment = converter.GetCSharpComment(cppClass, csStruct);
-            
+
             bool isUnion = cppClass.ClassKind == CppClassKind.Union;
 
             // Requires System.Runtime.InteropServices
-            csStruct.Attributes.Add(isUnion ? 
-                new CSharpStructLayoutAttribute(LayoutKind.Explicit) { CharSet = converter.Options.DefaultCharSet } : 
+            csStruct.Attributes.Add(isUnion ?
+                new CSharpStructLayoutAttribute(LayoutKind.Explicit) { CharSet = converter.Options.DefaultCharSet } :
                 new CSharpStructLayoutAttribute(LayoutKind.Sequential) { CharSet = converter.Options.DefaultCharSet }
             );
 
@@ -56,7 +53,7 @@ namespace CppAst.CodeGen.CSharp
                 var csBaseType = converter.GetCSharpType(cppClass.BaseTypes[0].Type, context);
                 csStruct.Members.Add(new CSharpField("@base") { FieldType = csBaseType, Visibility = CSharpVisibility.Public });
             }
-            
+
             // For opaque type we use a standard representation
             if (!cppClass.IsDefinition && cppClass.Fields.Count == 0)
             {
@@ -73,16 +70,19 @@ namespace CppAst.CodeGen.CSharp
                 csStruct.Members.Add(new CSharpLineElement($"public static bool operator ==({csStruct.Name} left, {csStruct.Name} right) => left.Equals(right);"));
                 csStruct.Members.Add(new CSharpLineElement($"public static bool operator !=({csStruct.Name} left, {csStruct.Name} right) => !left.Equals(right);"));
             }
-            
+
             // If we have any anonymous structs/unions for a field type
             // try to compute a name for them before processing them
             foreach (var cppField in cppClass.Fields)
             {
                 var fieldType = cppField.Type;
 
-                if (fieldType is CppClass cppFieldTypeClass && cppFieldTypeClass.IsAnonymous && string.IsNullOrEmpty(cppFieldTypeClass.Name))
+                if (fieldType is CppClass cppFieldTypeClass &&
+                    cppFieldTypeClass.IsAnonymous &&
+                    string.IsNullOrEmpty(cppFieldTypeClass.Name))
                 {
                     var parentName = string.Empty;
+
                     if (cppFieldTypeClass.Parent is CppClass cppParentClass)
                     {
                         parentName = cppParentClass.Name;
@@ -90,8 +90,9 @@ namespace CppAst.CodeGen.CSharp
 
                     if (cppFieldTypeClass.ClassKind == CppClassKind.Union)
                     {
-                        parentName = parentName == string.Empty ? "union" : parentName + "_union";
+                        parentName = parentName == string.Empty ? "union" : $"{parentName}_union";
                     }
+
                     cppFieldTypeClass.Name = $"{parentName}_{cppField.Name}";
                 }
             }

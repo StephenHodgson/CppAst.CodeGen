@@ -59,7 +59,7 @@ namespace CppAst.CodeGen.CSharp
                 switch (cppType)
                 {
                     case CppClass cppClass:
-                        name = CSharpHelper.AppendWithCasing(name, CSharpHelper.GetCSharpCasingKind(name), cppClass.ClassKind.ToString().ToLowerInvariant(), CSharpCasingKind.Lower);
+                        name = CSharpHelper.AppendWithCasing(name, CSharpHelper.GetCSharpCasingKind(name), $"{cppClass.ClassKind.ToString().ToLowerInvariant()}", CSharpCasingKind.Pascal);
                         break;
                     case CppFunctionType cppFunctionType:
                         name = CSharpHelper.AppendWithCasing(name, CSharpHelper.GetCSharpCasingKind(name), "delegate", CSharpCasingKind.Lower);
