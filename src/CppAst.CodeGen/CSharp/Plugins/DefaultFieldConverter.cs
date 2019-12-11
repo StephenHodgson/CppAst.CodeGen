@@ -34,6 +34,7 @@ namespace CppAst.CodeGen.CSharp
             var csContainer = converter.GetCSharpContainer(cppField, context);
             var isUnion = ((cppField.Parent as CppClass)?.ClassKind ?? CppClassKind.Struct) == CppClassKind.Union;
             var csFieldName = converter.GetCSharpName(cppField, (CSharpElement)csContainer);
+            var fieldCanonicalType = cppField.Type.GetCanonicalType();
 
             if (cppField.IsBitField)
             {
@@ -49,9 +50,9 @@ namespace CppAst.CodeGen.CSharp
                 }
 
                 if (csBitFieldStorage == null ||
-                    (csBitFieldStorage.CurrentBitWidth + cppField.BitFieldWidth) > csBitFieldStorage.MaxBitWidth)
+                    csBitFieldStorage.CurrentBitWidth + cppField.BitFieldWidth > csBitFieldStorage.MaxBitWidth)
                 {
-                    var canonicalType = (CppPrimitiveType)cppField.Type.GetCanonicalType();
+                    var canonicalType = (CppPrimitiveType)fieldCanonicalType;
                     csBitFieldStorage = new CSharpBitField($"{BitFieldName}{csContainer.Members.Count}")
                     {
                         Visibility = CSharpVisibility.Private
@@ -104,6 +105,7 @@ namespace CppAst.CodeGen.CSharp
                             csBitFieldStorage.MaxBitWidth = 128;
                             break;
                     }
+
                     csContainer.Members.Add(csBitFieldStorage);
                 }
 
@@ -168,13 +170,71 @@ namespace CppAst.CodeGen.CSharp
                     : CSharpModifiers.Const;
             }
 
-            csContainer.Members.Add(csField);
+            if (cppField.Parent is CppClass cppFieldParentClass &&
+                cppFieldParentClass.Parent is CppClass cppParentClass &&
+                cppParentClass.ClassKind == CppClassKind.Union)
+            {
+                if (csContainer is CSharpStruct parent)
+                {
+                    foreach (var attribute in parent.Attributes)
+                    {
+                        if (attribute is CSharpStructLayoutAttribute structLayoutAttribute)
+                        {
+                            structLayoutAttribute.LayoutKind = LayoutKind.Explicit;
+                            break;
+                        }
+                    }
+                }
+
+                CSharpField csPreviousField = null;
+
+                for (var index = csContainer.Members.Count - 1; index >= 0; index--)
+                {
+                    if (csContainer.Members[index] is CSharpField siblingField)
+                    {
+                        csPreviousField = siblingField;
+                        break;
+                    }
+                }
+
+                int offset = 0;
+
+                if (csPreviousField != null)
+                {
+                    for (int i = csPreviousField.Attributes.Count - 1; i >= 0; i--)
+                    {
+                        if (csPreviousField.Attributes[i] is CSharpFieldOffsetAttribute offsetAttribute)
+                        {
+                            offset += offsetAttribute.Offset + offsetAttribute.FieldSize;
+                        }
+
+                        if (csPreviousField.Attributes[i] is CSharpMarshalAttribute marshalAttribute &&
+                            marshalAttribute.SizeConst.HasValue)
+                        {
+                            offset += marshalAttribute.SizeConst.Value;
+                        }
+                    }
+                }
+
+                converter.AddUsing(csContainer, "System.Runtime.InteropServices");
+
+                if (fieldCanonicalType is CppPrimitiveType primitiveType)
+                {
+                    csField.Attributes.Add(new CSharpFieldOffsetAttribute(offset, GetFieldSize(primitiveType.Kind)));
+                }
+                else if (fieldCanonicalType is CppArrayType)
+                {
+                    csField.Attributes.Add(new CSharpFieldOffsetAttribute(offset));
+                }
+            }
 
             if (isUnion)
             {
-                csField.Attributes.Add(new CSharpFreeAttribute("FieldOffset(0)"));
                 converter.AddUsing(csContainer, "System.Runtime.InteropServices");
+                csField.Attributes.Add(new CSharpFieldOffsetAttribute(0, fieldCanonicalType is CppPrimitiveType primitiveType ? GetFieldSize(primitiveType.Kind) : 0));
             }
+
+            csContainer.Members.Add(csField);
 
             csField.FieldType = converter.GetCSharpType(cppField.Type, csField);
 
@@ -191,6 +251,39 @@ namespace CppAst.CodeGen.CSharp
             }
 
             return csField;
+        }
+
+        private static int GetFieldSize(CppPrimitiveKind kind)
+        {
+            switch (kind)
+            {
+                case CppPrimitiveKind.UnsignedChar:
+                    return sizeof(byte);
+                case CppPrimitiveKind.Bool:
+                    return sizeof(bool);
+                case CppPrimitiveKind.Char:
+                    return sizeof(char);
+                case CppPrimitiveKind.Short:
+                    return sizeof(short);
+                case CppPrimitiveKind.UnsignedShort:
+                    return sizeof(ushort);
+                case CppPrimitiveKind.Int:
+                    return sizeof(int);
+                case CppPrimitiveKind.UnsignedInt:
+                    return sizeof(uint);
+                case CppPrimitiveKind.LongLong:
+                    return sizeof(long);
+                case CppPrimitiveKind.UnsignedLongLong:
+                    return sizeof(ulong);
+                case CppPrimitiveKind.Float:
+                    return sizeof(float);
+                case CppPrimitiveKind.Double:
+                    return sizeof(double);
+                case CppPrimitiveKind.LongDouble:
+                    return sizeof(decimal);
+                default:
+                    throw new ArgumentOutOfRangeException(nameof(kind), kind, null);
+            }
         }
     }
 }
