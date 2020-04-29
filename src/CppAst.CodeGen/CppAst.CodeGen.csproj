@@ -29,12 +29,15 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="CppAst" Version="0.7.3" />
     <PackageReference Include="Zio" Version="0.8.0" />
   </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="Microsoft.SourceLink.GitHub" Version="1.0.*" PrivateAssets="All" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\CppAst\src\CppAst\CppAst.csproj" />
   </ItemGroup>
   
 </Project>
