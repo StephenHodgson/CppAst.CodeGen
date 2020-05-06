@@ -43,7 +43,7 @@ namespace CppAst.CodeGen.CSharp
         {
             if (scopeOverride != CSharpAttributeScope.None)
             {
-                writer.Write(scopeOverride == CSharpAttributeScope.Return ? "return:" : "assembly:");
+                writer.Write(scopeOverride == CSharpAttributeScope.Return ? "return: " : "assembly: ");
             }
             writer.Write(ToText());
         }
